@@ -1,5 +1,8 @@
-import { useState, useEffect } from 'react';
+'use client';
+
+import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { ArrowLeft, TrendingUp, BarChart2, User, Calendar, Shield, PieChart } from 'lucide-react';
 import { fundMockService, FundInfo, FundHistory, formatCurrency, formatPercentage } from '@/lib/mockData';
@@ -121,6 +124,7 @@ export default function FundDetailPage() {
               className="mr-4 p-1 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800"
             >
               <ArrowLeft className="h-5 w-5 text-zinc-600 dark:text-zinc-400" />
+
             </button>
             <h1 className="text-xl font-bold text-zinc-900 dark:text-white">基金详情</h1>
           </div>
