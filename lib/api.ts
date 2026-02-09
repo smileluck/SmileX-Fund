@@ -60,9 +60,8 @@ export async function searchFund(fundCode: string): Promise<FundSearchResult | n
       throw new Error('无效的基金代码格式');
     }
     
-    const timestamp = Date.now();
-    // 构建API请求URL
-    const url = `https://fundsuggest.eastmoney.com/FundSearch/api/FundSearchAPI.ashx?m=1&key=${fundCode}&callback=SuggestData_${timestamp}&_=${timestamp}`;
+    // 构建本地API请求URL
+    const url = `/api/fund/search?code=${fundCode}`;
     
     // 发送请求
     const controller = new AbortController();
@@ -84,15 +83,15 @@ export async function searchFund(fundCode: string): Promise<FundSearchResult | n
     }
     
     // 解析响应数据
-    const data: FundSearchResponse = await response.json();
+    const data = await response.json();
     
     // 检查是否有错误
-    if (data.ErrCode !== 0) {
-      throw new Error(data.ErrMsg || '搜索基金失败');
+    if (data.error) {
+      throw new Error(data.error);
     }
     
-    // 返回第一个结果（如果有）
-    return data.Datas.length > 0 ? data.Datas[0] : null;
+    // 返回结果
+    return data;
   } catch (error) {
     console.error('搜索基金失败:', error);
     // 处理不同类型的错误

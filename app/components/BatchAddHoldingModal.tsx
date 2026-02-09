@@ -1,5 +1,5 @@
 // 批量添加持仓模态框组件
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { batchAddHoldings, BatchAddItem, validateBatchAddItems, BatchAddResult } from '../../lib/batchOperations';
 import { searchFund } from '../../lib/api';
 
@@ -38,6 +38,17 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
   const [results, setResults] = useState<BatchAddResult[]>([]);
   const [showResults, setShowResults] = useState(false);
 
+  // 当模态框打开时重置状态
+  useEffect(() => {
+    if (isOpen) {
+      setItems([{ code: '', shares: 0, costPrice: 0, fundName: '', fundSize: '', holdingAmount: 0, holdingProfit: 0, error: '' }]);
+      setLoading(false);
+      setError(null);
+      setResults([]);
+      setShowResults(false);
+    }
+  }, [isOpen]);
+
   // 添加新的输入行
   const handleAddItem = () => {
     if (items.length < 10) {
@@ -62,7 +73,7 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
       [field]: field === 'code' ? value : parseFloat(value as string) || 0,
       error: '' // 重置错误信息
     };
-    
+
     // 实时校验
     const item = newItems[index];
     if (field === 'code') {
@@ -74,7 +85,7 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
         newItems[index].error = '持仓金额不能小于0';
       }
     }
-    
+
     // 当基金代码输入完整（6位）时，自动查询基金信息
     if (field === 'code' && typeof value === 'string' && value.length === 6) {
       try {
@@ -93,7 +104,7 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
         newItems[index].error = '查询基金信息失败';
       }
     }
-    
+
     setItems(newItems);
   };
 
@@ -104,19 +115,19 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
     if (!validation.valid) {
       // 将错误信息分配到对应的输入项中
       const newItems = [...items];
-      
+
       // 检查是否有全局错误（如项目数量、重复代码）
-      const globalErrors = validation.errors.filter(error => 
-        error.includes('请至少添加一项持仓') || 
-        error.includes('每次最多添加10项持仓') || 
+      const globalErrors = validation.errors.filter(error =>
+        error.includes('请至少添加一项持仓') ||
+        error.includes('每次最多添加10项持仓') ||
         error.includes('存在重复的基金代码')
       );
-      
+
       if (globalErrors.length > 0) {
         setError(globalErrors.join('\n'));
         return;
       }
-      
+
       // 分配每个项目的错误
       validation.errors.forEach(error => {
         const match = error.match(/第(\d+)项：(.*)/);
@@ -127,7 +138,7 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
           }
         }
       });
-      
+
       setItems(newItems);
       return;
     }
@@ -135,7 +146,7 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
     // 检查本地持仓信息
     const newItems = [...items];
     let hasExistingHoldings = false;
-    
+
     newItems.forEach((item, index) => {
       const existingHolding = userHoldings.find(holding => holding.code === item.code);
       if (existingHolding) {
@@ -143,7 +154,7 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
         hasExistingHoldings = true;
       }
     });
-    
+
     if (hasExistingHoldings) {
       setItems(newItems);
       return;
@@ -157,10 +168,10 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
     try {
       // 调用批量添加函数
       const addResults = await batchAddHoldings(items);
-      
+
       // 检查是否有失败的结果
       const hasFailedResults = addResults.some(result => !result.success);
-      
+
       if (hasFailedResults) {
         // 如果有失败的结果，将错误信息分配到对应的输入项中
         const newItems = [...items];
@@ -176,7 +187,7 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
         setLoading(false);
         return;
       }
-      
+
       // 如果所有结果都成功，跳转到添加结果页面
       setResults(addResults);
       setShowResults(true);
@@ -270,11 +281,10 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
                         {result.name || '-'}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          result.success
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${result.success
                             ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                             : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                        }`}>
+                          }`}>
                           {result.success ? '成功' : '失败'}
                         </span>
                       </td>
@@ -309,7 +319,7 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
               <table className="w-full divide-y divide-zinc-200 dark:divide-zinc-700">
                 <thead className="bg-zinc-50 dark:bg-zinc-800">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider" style={{ width: '20%' }}>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider" style={{ width: '10%' }}>
                       基金代码
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
@@ -330,17 +340,18 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
                   {items.map((item, index) => (
                     <>
                       <tr key={index}>
-                        <td className="px-4 py-3 whitespace-nowrap">
+                        <td className="px-3 py-3 whitespace-nowrap">
                           <input
                             type="text"
                             value={item.code}
                             onChange={(e) => handleUpdateItem(index, 'code', e.target.value)}
-                            placeholder="6位基金代码"
+                            placeholder="基金代码"
                             maxLength={6}
                             className="px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-zinc-800 dark:text-white"
+                            style={{ width: '100px' }}
                           />
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
+                        <td className="px-3 py-3 whitespace-nowrap">
                           <div className="text-sm text-zinc-900 dark:text-zinc-100">
                             {item.fundName || '---'}
                           </div>
@@ -348,7 +359,7 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
                             {item.fundSize || '---'}
                           </div>
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
+                        <td className="px-3 py-3 whitespace-nowrap">
                           <input
                             type="number"
                             value={item.holdingAmount || 0}
@@ -360,7 +371,7 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
                             style={{ width: '120px' }}
                           />
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
+                        <td className="px-3 py-3 whitespace-nowrap">
                           <input
                             type="number"
                             value={item.holdingProfit || 0}
@@ -371,7 +382,7 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
                             style={{ width: '120px' }}
                           />
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
+                        <td className="px-3 py-3 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
                           <button
                             onClick={() => handleRemoveItem(index)}
                             className="text-red-600 dark:text-red-400 hover:text-red-900 dark:hover:text-red-300"
