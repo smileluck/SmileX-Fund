@@ -71,6 +71,22 @@ export interface MacroEconomicCumulative {
   cumulativeChange: number; // 累计涨跌幅
 }
 
+// 贵金属数据接口
+export interface PreciousMetal {
+  name: string;          // 贵金属名称
+  value: string;         // 价格
+  change: string;        // 涨跌幅
+  isUp: boolean;         // 是否上涨
+  unit: string;          // 单位
+}
+
+// 贵金属历史走势接口
+export interface PreciousMetalHistory {
+  name: string;          // 贵金属名称
+  date: string;          // 日期
+  value: number;         // 价格
+}
+
 // 模拟基金基本数据
 const fundBasicData: FundBasic[] = [
   {
@@ -147,6 +163,24 @@ const marketIndexData: MarketIndex[] = [
   { name: '恒生指数', value: '18,245.67', change: '+0.56%', isUp: true },
 ];
 
+// 模拟贵金属数据
+const preciousMetalData: PreciousMetal[] = [
+  { name: '黄金', value: '412.56', change: '+0.32%', isUp: true, unit: '元/克' },
+  { name: '白银', value: '5.23', change: '-0.15%', isUp: false, unit: '元/克' },
+  { name: '铂金', value: '235.67', change: '+0.58%', isUp: true, unit: '元/克' },
+  { name: '钯金', value: '312.45', change: '-0.24%', isUp: false, unit: '元/克' },
+];
+
+// 模拟基金持仓汇总数据
+const fundHoldingsSummary = [
+  { industry: '信息技术', proportion: 35.2, count: 12 },
+  { industry: '医药生物', proportion: 22.5, count: 8 },
+  { industry: '消费零售', proportion: 18.7, count: 6 },
+  { industry: '金融服务', proportion: 12.3, count: 4 },
+  { industry: '新能源', proportion: 8.5, count: 3 },
+  { industry: '制造业', proportion: 2.8, count: 2 },
+];
+
 // 生成随机涨跌幅度
 const generateRandomChange = (baseValue: number, volatility: number = 0.02): number => {
   // 生成 -volatility 到 +volatility 之间的随机数
@@ -177,6 +211,48 @@ const generateFundHistory = (code: string, days: number = 30): FundHistory[] => 
       code,
       date: dateStr,
       value: formatNumber(baseValue)
+    });
+  }
+  
+  return history;
+};
+
+// 生成贵金属历史数据
+const generatePreciousMetalHistory = (name: string, days: number = 30): PreciousMetalHistory[] => {
+  const history: PreciousMetalHistory[] = [];
+  const today = new Date();
+  
+  // 根据贵金属类型设置不同的初始值范围
+  let baseValue: number;
+  switch (name) {
+    case '黄金':
+      baseValue = 400 + Math.random() * 30; // 初始值 400-430 之间
+      break;
+    case '白银':
+      baseValue = 5 + Math.random() * 1; // 初始值 5-6 之间
+      break;
+    case '铂金':
+      baseValue = 230 + Math.random() * 20; // 初始值 230-250 之间
+      break;
+    case '钯金':
+      baseValue = 300 + Math.random() * 30; // 初始值 300-330 之间
+      break;
+    default:
+      baseValue = 100 + Math.random() * 50; // 默认初始值
+  }
+  
+  for (let i = days; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    // 生成带有随机波动的历史数据
+    baseValue = generateRandomChange(baseValue, 0.01);
+    
+    history.push({
+      name,
+      date: dateStr,
+      value: formatNumber(baseValue, 2)
     });
   }
   
@@ -305,6 +381,7 @@ const generateMacroEconomicCumulative = (data: MacroEconomicData[]): MacroEconom
 export class FundMockService {
   private fundData: Map<string, FundInfo>;
   private marketData: MarketIndex[];
+  private preciousMetalData: PreciousMetal[];
   private updateInterval: NodeJS.Timeout | null = null;
   private listeners: Set<() => void> = new Set();
 
@@ -312,6 +389,7 @@ export class FundMockService {
     // 初始化基金数据
     this.fundData = new Map();
     this.marketData = [...marketIndexData];
+    this.preciousMetalData = [...preciousMetalData];
     
     // 为每个基金生成初始数据
     fundBasicData.forEach(fund => {
@@ -349,6 +427,7 @@ export class FundMockService {
       try {
         this.updateFundValuations();
         this.updateMarketIndices();
+        this.updatePreciousMetals();
         this.notifyListeners();
       } catch (error) {
         console.error('Error updating fund data:', error);
@@ -400,6 +479,28 @@ export class FundMockService {
       
       return {
         ...index,
+        value: newValueStr,
+        change: changeStr,
+        isUp
+      };
+    });
+  }
+
+  // 更新贵金属数据
+  private updatePreciousMetals() {
+    this.preciousMetalData = this.preciousMetalData.map(metal => {
+      const isUp = Math.random() > 0.4; // 60% 概率上涨
+      const change = formatNumber((Math.random() * 0.8), 2);
+      const changeStr = `${isUp ? '+' : '-' }${change}%`;
+      
+      // 模拟价格变化
+      const valueNum = parseFloat(metal.value);
+      const valueChange = valueNum * (change / 100) * (isUp ? 1 : -1);
+      const newValue = Math.round((valueNum + valueChange) * 100) / 100;
+      const newValueStr = newValue.toFixed(2);
+      
+      return {
+        ...metal,
         value: newValueStr,
         change: changeStr,
         isUp
@@ -508,6 +609,21 @@ export class FundMockService {
   getMacroEconomicCumulative(months: number = 24): MacroEconomicCumulative[] {
     const macroData = generateMacroEconomicData(months);
     return generateMacroEconomicCumulative(macroData);
+  }
+  
+  // 获取贵金属数据
+  getPreciousMetals(): PreciousMetal[] {
+    return [...this.preciousMetalData];
+  }
+  
+  // 获取贵金属历史数据
+  getPreciousMetalHistory(name: string, days: number = 30): PreciousMetalHistory[] {
+    return generatePreciousMetalHistory(name, days);
+  }
+  
+  // 获取基金持仓汇总数据
+  getFundHoldingsSummary() {
+    return fundHoldingsSummary;
   }
 }
 

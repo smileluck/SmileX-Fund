@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { ArrowLeft, TrendingUp, BarChart2, User, Calendar, Shield, PieChart } from 'lucide-react';
+import { ArrowLeft, TrendingUp, BarChart2, User, Calendar, Shield, PieChart, Maximize2, Minimize2 } from 'lucide-react';
 import { fundMockService, FundInfo, FundHistory, formatCurrency, formatPercentage } from '@/lib/mockData';
 
 /**
@@ -21,6 +21,7 @@ export default function FundDetailPage() {
   const [timeRange, setTimeRange] = useState<'1d' | '1w' | '1m' | '3m' | '1y'>('1m');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // 获取基金数据和历史走势
   useEffect(() => {
@@ -247,19 +248,32 @@ export default function FundDetailPage() {
               <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               历史走势
             </h2>
-            <div className="flex gap-1">
-              {(['1d', '1w', '1m', '3m', '1y'] as const).map((range) => (
-                <button
-                  key={range}
-                  onClick={() => handleTimeRangeChange(range)}
-                  className={`px-3 py-1 text-xs rounded-full ${timeRange === range 
-                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
-                    : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
-                  }`}
-                >
-                  {range}
-                </button>
-              ))}
+            <div className="flex gap-2 items-center">
+              <div className="flex gap-1">
+                {(['1d', '1w', '1m', '3m', '1y'] as const).map((range) => (
+                  <div
+                    key={range}
+                    onTouchEnd={() => handleTimeRangeChange(range)}
+                    onClick={() => handleTimeRangeChange(range)}
+                    className={`px-3 py-1 text-xs rounded-full cursor-pointer ${timeRange === range 
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                      : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                    }`}
+                    style={{ touchAction: 'manipulation' }}
+                  >
+                    {range}
+                  </div>
+                ))}
+              </div>
+              <div
+                onTouchEnd={() => setIsFullscreen(true)}
+                onClick={() => setIsFullscreen(true)}
+                className="p-1.5 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+                aria-label="全屏查看"
+                style={{ touchAction: 'manipulation' }}
+              >
+                <Maximize2 className="h-4 w-4 text-zinc-600 dark:text-zinc-400" />
+              </div>
             </div>
           </div>
           <div className="h-80">
@@ -381,6 +395,92 @@ export default function FundDetailPage() {
           </div>
         )}
       </main>
+
+      {/* 全屏图表模态框 */}
+      {isFullscreen && (
+        <div className="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6">
+          <div className="relative w-full max-w-7xl max-h-[95vh] flex flex-col">
+            {/* 顶部控制栏 */}
+            <div className="flex items-center justify-between mb-4">
+              {/* 全屏图表标题 */}
+              <div className="flex items-center gap-2 text-zinc-900">
+                <TrendingUp className="h-5 w-5 text-blue-600" />
+                <h2 className="text-lg font-semibold">{fund?.name} - 历史走势 (全屏)</h2>
+              </div>
+              
+              {/* 时间范围选择器 */}
+              <div className="flex gap-1">
+                {(['1d', '1w', '1m', '3m', '1y'] as const).map((range) => (
+                  <div
+                    key={range}
+                    onTouchEnd={() => handleTimeRangeChange(range)}
+                    onClick={() => handleTimeRangeChange(range)}
+                    className={`px-3 py-1 text-xs rounded-full cursor-pointer ${timeRange === range 
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                      : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                    }`}
+                    style={{ touchAction: 'manipulation' }}
+                  >
+                    {range}
+                  </div>
+                ))}
+              </div>
+              
+              {/* 关闭按钮 */}
+              <div
+                onTouchEnd={() => setIsFullscreen(false)}
+                onClick={() => setIsFullscreen(false)}
+                className="ml-4 p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+                aria-label="退出全屏"
+                style={{ touchAction: 'manipulation' }}
+              >
+                <Minimize2 className="h-5 w-5 text-zinc-600 dark:text-zinc-400" />
+              </div>
+            </div>
+            
+            {/* 全屏图表 */}
+            <div className="flex-1 min-h-[60vh]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={historyData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis 
+                    dataKey="date" 
+                    stroke="#6b7280"
+                    tick={{ fontSize: 12, fill: '#6b7280' }}
+                    interval={Math.ceil(historyData.length / 10)}
+                  />
+                  <YAxis 
+                    stroke="#6b7280"
+                    tick={{ fontSize: 12, fill: '#6b7280' }}
+                    domain={['dataMin - 0.05', 'dataMax + 0.05']}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.375rem',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                      color: '#1f2937'
+                    }}
+                    formatter={(value: number | undefined) => [formatCurrency(value ?? 0), '估值']}
+                    labelFormatter={(label) => `日期: ${label}`}
+                  />
+                  <Legend />
+                  <Line 
+                    type="monotone" 
+                    dataKey="value" 
+                    name="估值走势" 
+                    stroke={isUp ? '#10b981' : '#ef4444'} 
+                    strokeWidth={3} 
+                    dot={false} 
+                    activeDot={{ r: 8, fill: isUp ? '#10b981' : '#ef4444' }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
