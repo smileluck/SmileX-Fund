@@ -18,6 +18,7 @@ interface FundTabProps {
   setSearchQuery: (query: string) => void;
   setFundType: (type: string) => void;
   setRiskLevel: (level: string) => void;
+  colorScheme?: 'red-up' | 'red-down';
 }
 
 /**
@@ -38,8 +39,17 @@ export default function FundTab({
   handleResetFilters, 
   setSearchQuery, 
   setFundType, 
-  setRiskLevel 
+  setRiskLevel,
+  colorScheme = 'red-up'
 }: FundTabProps) {
+  // 根据 colorScheme 获取涨跌颜色类名
+  const getChangeColorClass = (isUp: boolean) => {
+    if (colorScheme === 'red-up') {
+      return isUp ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400';
+    } else {
+      return isUp ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+    }
+  };
   return (
     <div>
       {/* 市场概览 */}
@@ -51,7 +61,7 @@ export default function FundTab({
               <p className="text-sm text-zinc-500 dark:text-zinc-400">{index.name}</p>
               <div className="flex items-baseline gap-2 mt-1">
                 <span className="text-lg font-semibold text-zinc-900 dark:text-white">{index.value}</span>
-                <span className={`text-sm font-medium ${index.isUp ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                <span className={`text-sm font-medium ${getChangeColorClass(index.isUp)}`}>
                   {index.change}
                 </span>
               </div>
@@ -199,13 +209,13 @@ export default function FundTab({
                       </div>
                       <div>
                         <p className="text-zinc-500 dark:text-zinc-400">日涨跌</p>
-                        <p className={`font-medium ${isUp ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        <p className={`font-medium ${getChangeColorClass(isUp)}`}>
                           {fund.valuation.dailyChange > 0 ? '+' : ''}{formatCurrency(fund.valuation.dailyChange)}
                         </p>
                       </div>
                       <div>
                         <p className="text-zinc-500 dark:text-zinc-400">涨跌幅</p>
-                        <p className={`font-medium ${isUp ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        <p className={`font-medium ${getChangeColorClass(isUp)}`}>
                           {formatPercentage(fund.valuation.dailyChangeRate)}
                         </p>
                       </div>
@@ -227,12 +237,12 @@ export default function FundTab({
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">{formatCurrency(fund.valuation.netValue)}</p>
                     </div>
                     <div className="col-span-2 text-right">
-                      <p className={`font-medium ${isUp ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                      <p className={`font-medium ${getChangeColorClass(isUp)}`}>
                         {fund.valuation.dailyChange > 0 ? '+' : ''}{formatCurrency(fund.valuation.dailyChange)}
                       </p>
                     </div>
                     <div className="col-span-2 text-right">
-                      <p className={`font-medium ${isUp ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                      <p className={`font-medium ${getChangeColorClass(isUp)}`}>
                         {formatPercentage(fund.valuation.dailyChangeRate)}
                       </p>
                     </div>

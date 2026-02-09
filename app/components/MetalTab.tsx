@@ -5,19 +5,50 @@ interface MetalTabProps {
   preciousMetals: any[];
   goldHistory?: any[];
   silverHistory?: any[];
+  itemsPerRow?: number;
+  colorScheme?: 'red-up' | 'red-down';
 }
 
 /**
  * 贵金属Tab组件
  * 包含贵金属板块和趋势图
  */
-export default function MetalTab({ preciousMetals, goldHistory, silverHistory }: MetalTabProps) {
+export default function MetalTab({ preciousMetals, goldHistory, silverHistory, itemsPerRow = 2, colorScheme = 'red-up' }: MetalTabProps) {
+  // 根据 itemsPerRow 计算网格布局类名
+  const getGridClass = () => {
+    // 确保 itemsPerRow 在 1-4 之间
+    const validItemsPerRow = Math.max(1, Math.min(4, itemsPerRow));
+    
+    // 移动端始终为 2 列，桌面端根据设置调整
+    switch (validItemsPerRow) {
+      case 1:
+        return "grid-cols-1 md:grid-cols-1";
+      case 2:
+        return "grid-cols-2 md:grid-cols-2";
+      case 3:
+        return "grid-cols-2 md:grid-cols-3";
+      case 4:
+        return "grid-cols-2 md:grid-cols-4";
+      default:
+        return "grid-cols-2 md:grid-cols-2";
+    }
+  };
+
+  // 根据 colorScheme 获取涨跌颜色类名
+  const getChangeColorClass = (isUp: boolean) => {
+    if (colorScheme === 'red-up') {
+      return isUp ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400';
+    } else {
+      return isUp ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+    }
+  };
+
   return (
     <div>
       {/* 贵金属 */}
       <div className="mb-6">
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4">贵金属</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className={`grid ${getGridClass()} gap-4`}>
           {preciousMetals.map((metal, i) => (
             <div key={i} className="bg-white dark:bg-zinc-900 rounded-lg p-4 shadow-sm border border-zinc-200 dark:border-zinc-800">
               <p className="text-sm text-zinc-500 dark:text-zinc-400">{metal.name}</p>
@@ -25,7 +56,7 @@ export default function MetalTab({ preciousMetals, goldHistory, silverHistory }:
                 <span className="text-lg font-semibold text-zinc-900 dark:text-white">{metal.value}</span>
                 <span className="text-xs text-zinc-400 dark:text-zinc-500">{metal.unit}</span>
               </div>
-              <div className={`text-sm font-medium mt-1 ${metal.isUp ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+              <div className={`text-sm font-medium mt-1 ${getChangeColorClass(metal.isUp)}`}>
                 {metal.change}
               </div>
             </div>

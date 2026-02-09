@@ -6,18 +6,49 @@ import { MacroEconomicData, MacroEconomicCumulative } from '@/lib/mockData';
 interface MarketTabProps {
   macroEconomicData: MacroEconomicData[];
   macroEconomicCumulative: MacroEconomicCumulative[];
+  itemsPerRow?: number;
+  colorScheme?: 'red-up' | 'red-down';
 }
 
 /**
  * 市场Tab组件
  * 包含宏观经济部分
  */
-export default function MarketTab({ macroEconomicData, macroEconomicCumulative }: MarketTabProps) {
+export default function MarketTab({ macroEconomicData, macroEconomicCumulative, itemsPerRow = 2, colorScheme = 'red-up' }: MarketTabProps) {
   // 全屏状态管理
   const [fullscreenState, setFullscreenState] = useState<{
     isFullscreen: boolean;
     chartType: 'm1' | 'cumulative' | 'gdp' | 'buffett' | null;
   }>({ isFullscreen: false, chartType: null });
+
+  // 根据 itemsPerRow 计算网格布局类名
+  const getGridClass = () => {
+    // 确保 itemsPerRow 在 1-4 之间
+    const validItemsPerRow = Math.max(1, Math.min(4, itemsPerRow));
+    
+    // 移动端始终为 1 列，桌面端根据设置调整
+    switch (validItemsPerRow) {
+      case 1:
+        return "grid-cols-1 md:grid-cols-1";
+      case 2:
+        return "grid-cols-1 md:grid-cols-2";
+      case 3:
+        return "grid-cols-1 md:grid-cols-3";
+      case 4:
+        return "grid-cols-1 md:grid-cols-4";
+      default:
+        return "grid-cols-1 md:grid-cols-2";
+    }
+  };
+
+  // 根据 colorScheme 获取涨跌颜色类名
+  const getChangeColorClass = (isUp: boolean) => {
+    if (colorScheme === 'red-up') {
+      return isUp ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400';
+    } else {
+      return isUp ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
+    }
+  };
 
   // 进入全屏
   const enterFullscreen = (chartType: 'm1' | 'cumulative' | 'gdp' | 'buffett') => {
@@ -38,8 +69,8 @@ export default function MarketTab({ macroEconomicData, macroEconomicCumulative }
           宏观经济
         </h2>
         
-        {/* 四宫格图表布局 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* 图表布局 */}
+        <div className={`grid ${getGridClass()} gap-4`}>
           {/* M1站跌幅折线图 */}
           <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 p-4">
             <div className="flex items-center justify-between mb-4">

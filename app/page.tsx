@@ -26,6 +26,118 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [fundType, setFundType] = useState('');
   const [riskLevel, setRiskLevel] = useState('');
+  // 设置相关状态
+  const [itemsPerRow, setItemsPerRow] = useState(2); // 贵金属默认值为 2
+  const [marketItemsPerRow, setMarketItemsPerRow] = useState(2); // 市场默认值为 2
+  const [colorScheme, setColorScheme] = useState<'red-up' | 'red-down'>('red-up'); // 默认红色为涨
+
+  // 从本地存储读取设置
+  useEffect(() => {
+    try {
+      // 读取贵金属设置
+      const savedItemsPerRow = localStorage.getItem('metalItemsPerRow');
+      if (savedItemsPerRow) {
+        const parsedValue = parseInt(savedItemsPerRow, 10);
+        if (!isNaN(parsedValue) && parsedValue >= 1 && parsedValue <= 4) {
+          setItemsPerRow(parsedValue);
+        }
+      }
+      
+      // 读取市场设置
+      const savedMarketItemsPerRow = localStorage.getItem('marketItemsPerRow');
+      if (savedMarketItemsPerRow) {
+        const parsedValue = parseInt(savedMarketItemsPerRow, 10);
+        if (!isNaN(parsedValue) && parsedValue >= 1 && parsedValue <= 4) {
+          setMarketItemsPerRow(parsedValue);
+        }
+      }
+      
+      // 读取涨跌颜色配置
+      const savedColorScheme = localStorage.getItem('colorScheme');
+      if (savedColorScheme && (savedColorScheme === 'red-up' || savedColorScheme === 'red-down')) {
+        setColorScheme(savedColorScheme as 'red-up' | 'red-down');
+      }
+    } catch (error) {
+      console.error('Error reading settings from localStorage:', error);
+      // 出错时使用默认值，但不保存到本地存储
+    }
+  }, []);
+
+  // 移除自动保存设置的逻辑，只在设置页面保存
+  // 这样可以避免在主页面初始化时覆盖本地存储中的值
+
+  // 监听本地存储变化，实现设置自动同步
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      // 监听贵金属设置变化
+      if (event.key === 'metalItemsPerRow' && event.newValue) {
+        const parsedValue = parseInt(event.newValue, 10);
+        if (!isNaN(parsedValue) && parsedValue >= 1 && parsedValue <= 4) {
+          setItemsPerRow(parsedValue);
+        }
+      }
+      
+      // 监听市场设置变化
+      if (event.key === 'marketItemsPerRow' && event.newValue) {
+        const parsedValue = parseInt(event.newValue, 10);
+        if (!isNaN(parsedValue) && parsedValue >= 1 && parsedValue <= 4) {
+          setMarketItemsPerRow(parsedValue);
+        }
+      }
+      
+      // 监听涨跌颜色配置变化
+      if (event.key === 'colorScheme' && event.newValue && (event.newValue === 'red-up' || event.newValue === 'red-down')) {
+        setColorScheme(event.newValue as 'red-up' | 'red-down');
+      }
+    };
+
+    // 添加存储事件监听器
+    window.addEventListener('storage', handleStorageChange);
+
+    // 清理函数
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
+  // 监听同一页面内的本地存储变化（因为 storage 事件不会在同一页面内触发）
+  useEffect(() => {
+    // 定期检查本地存储，确保设置同步
+    const intervalId = setInterval(() => {
+      try {
+        // 检查贵金属设置
+        const savedMetalItemsPerRow = localStorage.getItem('metalItemsPerRow');
+        if (savedMetalItemsPerRow) {
+          const parsedValue = parseInt(savedMetalItemsPerRow, 10);
+          if (!isNaN(parsedValue) && parsedValue >= 1 && parsedValue <= 4 && parsedValue !== itemsPerRow) {
+            setItemsPerRow(parsedValue);
+          }
+        }
+        
+        // 检查市场设置
+        const savedMarketItemsPerRow = localStorage.getItem('marketItemsPerRow');
+        if (savedMarketItemsPerRow) {
+          const parsedValue = parseInt(savedMarketItemsPerRow, 10);
+          if (!isNaN(parsedValue) && parsedValue >= 1 && parsedValue <= 4 && parsedValue !== marketItemsPerRow) {
+            setMarketItemsPerRow(parsedValue);
+          }
+        }
+        
+        // 检查涨跌颜色配置
+        const savedColorScheme = localStorage.getItem('colorScheme');
+        if (savedColorScheme && (savedColorScheme === 'red-up' || savedColorScheme === 'red-down') && savedColorScheme !== colorScheme) {
+          setColorScheme(savedColorScheme as 'red-up' | 'red-down');
+        }
+      } catch (error) {
+        console.error('Error checking localStorage for settings:', error);
+      }
+    }, 1000); // 每1秒检查一次
+
+    // 清理函数
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [itemsPerRow, marketItemsPerRow, colorScheme]);
 
   // 初始化数据并启动实时更新
   useEffect(() => {
@@ -167,9 +279,12 @@ export default function HomePage() {
             <button className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800">
               <Bell className="h-5 w-5 text-zinc-600 dark:text-zinc-400" />
             </button>
-            <button className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800">
+            <Link 
+              href="/settings"
+              className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            >
               <Settings className="h-5 w-5 text-zinc-600 dark:text-zinc-400" />
-            </button>
+            </Link>
           </div>
         </div>
         
@@ -207,6 +322,7 @@ export default function HomePage() {
               setSearchQuery={setSearchQuery}
               setFundType={setFundType}
               setRiskLevel={setRiskLevel}
+              colorScheme={colorScheme}
             />
           )}
           {activeTab === 'metal' && (
@@ -214,12 +330,16 @@ export default function HomePage() {
               preciousMetals={preciousMetals} 
               goldHistory={goldHistory} 
               silverHistory={silverHistory} 
+              itemsPerRow={itemsPerRow}
+              colorScheme={colorScheme}
             />
           )}
           {activeTab === 'market' && (
             <MarketTab 
               macroEconomicData={macroEconomicData}
               macroEconomicCumulative={macroEconomicCumulative}
+              itemsPerRow={marketItemsPerRow}
+              colorScheme={colorScheme}
             />
           )}
         </Suspense>
