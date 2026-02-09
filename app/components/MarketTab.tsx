@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { DollarSign, LineChart as LineChartIcon, TrendingUp, Maximize2, Minimize2 } from 'lucide-react';
-import { MacroEconomicData, MacroEconomicCumulative } from '@/lib/mockData';
+import { MacroEconomicData, MarketIndex, MacroEconomicCumulative } from '@/lib/mockData';
 
 interface MarketTabProps {
+  marketIndices: MarketIndex[];
   macroEconomicData: MacroEconomicData[];
   macroEconomicCumulative: MacroEconomicCumulative[];
   itemsPerRow?: number;
@@ -14,7 +15,7 @@ interface MarketTabProps {
  * 市场Tab组件
  * 包含宏观经济部分
  */
-export default function MarketTab({ macroEconomicData, macroEconomicCumulative, itemsPerRow = 2, colorScheme = 'red-up' }: MarketTabProps) {
+export default function MarketTab({ marketIndices, macroEconomicData, macroEconomicCumulative, itemsPerRow = 2, colorScheme = 'red-up' }: MarketTabProps) {
   // 全屏状态管理
   const [fullscreenState, setFullscreenState] = useState<{
     isFullscreen: boolean;
@@ -25,7 +26,7 @@ export default function MarketTab({ macroEconomicData, macroEconomicCumulative, 
   const getGridClass = () => {
     // 确保 itemsPerRow 在 1-4 之间
     const validItemsPerRow = Math.max(1, Math.min(4, itemsPerRow));
-    
+
     // 移动端始终为 1 列，桌面端根据设置调整
     switch (validItemsPerRow) {
       case 1:
@@ -62,13 +63,32 @@ export default function MarketTab({ macroEconomicData, macroEconomicCumulative, 
 
   return (
     <div>
+
+      {/* 市场概览 */}
+      <div className="mb-6">
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4">市场概览</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {marketIndices.map((index, i) => (
+            <div key={i} className="bg-white dark:bg-zinc-900 rounded-lg p-4 shadow-sm border border-zinc-200 dark:border-zinc-800">
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">{index.name}</p>
+              <div className="flex items-baseline gap-2 mt-1">
+                <span className="text-lg font-semibold text-zinc-900 dark:text-white">{index.value}</span>
+                <span className={`text-sm font-medium ${getChangeColorClass(index.isUp)}`}>
+                  {index.change}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* 宏观经济板块 */}
       <div className="mb-6">
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4 flex items-center gap-2">
           <DollarSign className="h-5 w-5 text-blue-600 dark:text-blue-400" />
           宏观经济
         </h2>
-        
+
         {/* 图表布局 */}
         <div className={`grid ${getGridClass()} gap-4`}>
           {/* M1站跌幅折线图 */}
@@ -92,19 +112,19 @@ export default function MarketTab({ macroEconomicData, macroEconomicCumulative, 
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={macroEconomicData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis 
-                    dataKey="date" 
+                  <XAxis
+                    dataKey="date"
                     stroke="#6b7280"
                     tick={{ fontSize: 12 }}
                     interval={Math.ceil(macroEconomicData.length / 12)}
                   />
-                  <YAxis 
+                  <YAxis
                     stroke="#6b7280"
                     tick={{ fontSize: 12 }}
                     domain={['dataMin - 2', 'dataMax + 2']}
                   />
-                  <Tooltip 
-                    contentStyle={{ 
+                  <Tooltip
+                    contentStyle={{
                       backgroundColor: 'rgba(255, 255, 255, 0.95)',
                       border: '1px solid #e5e7eb',
                       borderRadius: '0.375rem',
@@ -114,20 +134,20 @@ export default function MarketTab({ macroEconomicData, macroEconomicCumulative, 
                     labelFormatter={(label) => `日期: ${label}`}
                   />
                   <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey="m1ChangeRate" 
-                    name="M1同比增长率" 
-                    stroke="#3b82f6" 
-                    strokeWidth={2} 
-                    dot={false} 
+                  <Line
+                    type="monotone"
+                    dataKey="m1ChangeRate"
+                    name="M1同比增长率"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    dot={false}
                     activeDot={{ r: 6 }}
                   />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           </div>
-          
+
           {/* 累计涨跌幅总线图 */}
           <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 p-4">
             <div className="flex items-center justify-between mb-4">
@@ -149,18 +169,18 @@ export default function MarketTab({ macroEconomicData, macroEconomicCumulative, 
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={macroEconomicCumulative}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis 
-                    dataKey="date" 
+                  <XAxis
+                    dataKey="date"
                     stroke="#6b7280"
                     tick={{ fontSize: 12 }}
                     interval={Math.ceil(macroEconomicCumulative.length / 12)}
                   />
-                  <YAxis 
+                  <YAxis
                     stroke="#6b7280"
                     tick={{ fontSize: 12 }}
                   />
-                  <Tooltip 
-                    contentStyle={{ 
+                  <Tooltip
+                    contentStyle={{
                       backgroundColor: 'rgba(255, 255, 255, 0.95)',
                       border: '1px solid #e5e7eb',
                       borderRadius: '0.375rem',
@@ -170,20 +190,20 @@ export default function MarketTab({ macroEconomicData, macroEconomicCumulative, 
                     labelFormatter={(label) => `日期: ${label}`}
                   />
                   <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey="cumulativeChange" 
-                    name="累计涨跌幅" 
-                    stroke="#10b981" 
-                    strokeWidth={2} 
-                    dot={false} 
+                  <Line
+                    type="monotone"
+                    dataKey="cumulativeChange"
+                    name="累计涨跌幅"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    dot={false}
                     activeDot={{ r: 6 }}
                   />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           </div>
-          
+
           {/* GDP数据图表 */}
           <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 p-4">
             <div className="flex items-center justify-between mb-4">
@@ -205,25 +225,25 @@ export default function MarketTab({ macroEconomicData, macroEconomicCumulative, 
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={macroEconomicData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis 
-                    dataKey="date" 
+                  <XAxis
+                    dataKey="date"
                     stroke="#6b7280"
                     tick={{ fontSize: 12 }}
                     interval={Math.ceil(macroEconomicData.length / 12)}
                   />
-                  <YAxis 
-                    yAxisId="left" 
+                  <YAxis
+                    yAxisId="left"
                     stroke="#6b7280"
                     tick={{ fontSize: 12 }}
                   />
-                  <YAxis 
-                    yAxisId="right" 
-                    orientation="right" 
+                  <YAxis
+                    yAxisId="right"
+                    orientation="right"
                     stroke="#6b7280"
                     tick={{ fontSize: 12 }}
                   />
-                  <Tooltip 
-                    contentStyle={{ 
+                  <Tooltip
+                    contentStyle={{
                       backgroundColor: 'rgba(255, 255, 255, 0.95)',
                       border: '1px solid #e5e7eb',
                       borderRadius: '0.375rem',
@@ -239,31 +259,31 @@ export default function MarketTab({ macroEconomicData, macroEconomicCumulative, 
                     labelFormatter={(label) => `日期: ${label}`}
                   />
                   <Legend />
-                  <Line 
+                  <Line
                     yAxisId="left"
-                    type="monotone" 
-                    dataKey="gdp" 
-                    name="GDP总量" 
-                    stroke="#3b82f6" 
-                    strokeWidth={2} 
-                    dot={false} 
+                    type="monotone"
+                    dataKey="gdp"
+                    name="GDP总量"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    dot={false}
                     activeDot={{ r: 6 }}
                   />
-                  <Line 
+                  <Line
                     yAxisId="right"
-                    type="monotone" 
-                    dataKey="gdpChangeRate" 
-                    name="GDP同比增长率" 
-                    stroke="#f59e0b" 
-                    strokeWidth={2} 
-                    dot={false} 
+                    type="monotone"
+                    dataKey="gdpChangeRate"
+                    name="GDP同比增长率"
+                    stroke="#f59e0b"
+                    strokeWidth={2}
+                    dot={false}
                     activeDot={{ r: 6 }}
                   />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           </div>
-          
+
           {/* 巴菲特指标图表 */}
           <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 p-4">
             <div className="flex items-center justify-between mb-4">
@@ -285,19 +305,19 @@ export default function MarketTab({ macroEconomicData, macroEconomicCumulative, 
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={macroEconomicData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis 
-                    dataKey="date" 
+                  <XAxis
+                    dataKey="date"
                     stroke="#6b7280"
                     tick={{ fontSize: 12 }}
                     interval={Math.ceil(macroEconomicData.length / 12)}
                   />
-                  <YAxis 
+                  <YAxis
                     stroke="#6b7280"
                     tick={{ fontSize: 12 }}
                     domain={[0.5, 1.7]}
                   />
-                  <Tooltip 
-                    contentStyle={{ 
+                  <Tooltip
+                    contentStyle={{
                       backgroundColor: 'rgba(255, 255, 255, 0.95)',
                       border: '1px solid #e5e7eb',
                       borderRadius: '0.375rem',
@@ -307,13 +327,13 @@ export default function MarketTab({ macroEconomicData, macroEconomicCumulative, 
                     labelFormatter={(label) => `日期: ${label}`}
                   />
                   <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey="buffettIndicator" 
-                    name="巴菲特指标" 
-                    stroke="#8b5cf6" 
-                    strokeWidth={2} 
-                    dot={false} 
+                  <Line
+                    type="monotone"
+                    dataKey="buffettIndicator"
+                    name="巴菲特指标"
+                    stroke="#8b5cf6"
+                    strokeWidth={2}
+                    dot={false}
                     activeDot={{ r: 6 }}
                   />
                 </LineChart>
@@ -342,7 +362,7 @@ export default function MarketTab({ macroEconomicData, macroEconomicCumulative, 
                   {fullscreenState.chartType === 'buffett' && '巴菲特指标（股市总市值/GDP） (全屏)'}
                 </h2>
               </div>
-              
+
               {/* 关闭按钮 */}
               <div
                 onTouchEnd={exitFullscreen}
@@ -354,7 +374,7 @@ export default function MarketTab({ macroEconomicData, macroEconomicCumulative, 
                 <Minimize2 className="h-5 w-5 text-zinc-600 dark:text-zinc-400" />
               </div>
             </div>
-            
+
             {/* 全屏图表 */}
             <div className="flex-1 min-h-[60vh]">
               <ResponsiveContainer width="100%" height="100%">
@@ -362,19 +382,19 @@ export default function MarketTab({ macroEconomicData, macroEconomicCumulative, 
                 {fullscreenState.chartType === 'm1' && (
                   <LineChart data={macroEconomicData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis 
-                      dataKey="date" 
+                    <XAxis
+                      dataKey="date"
                       stroke="#6b7280"
-                      tick={{ fontSize: 12 }} 
+                      tick={{ fontSize: 12 }}
                       interval={Math.ceil(macroEconomicData.length / 10)}
                     />
-                    <YAxis 
+                    <YAxis
                       stroke="#6b7280"
-                      tick={{ fontSize: 12 }} 
+                      tick={{ fontSize: 12 }}
                       domain={['dataMin - 2', 'dataMax + 2']}
                     />
-                    <Tooltip 
-                      contentStyle={{ 
+                    <Tooltip
+                      contentStyle={{
                         backgroundColor: 'rgba(255, 255, 255, 0.95)',
                         border: '1px solid #e5e7eb',
                         borderRadius: '0.375rem',
@@ -385,34 +405,34 @@ export default function MarketTab({ macroEconomicData, macroEconomicCumulative, 
                       labelFormatter={(label) => `日期: ${label}`}
                     />
                     <Legend />
-                    <Line 
-                      type="monotone" 
-                      dataKey="m1ChangeRate" 
-                      name="M1同比增长率" 
-                      stroke="#3b82f6" 
-                      strokeWidth={3} 
-                      dot={false} 
+                    <Line
+                      type="monotone"
+                      dataKey="m1ChangeRate"
+                      name="M1同比增长率"
+                      stroke="#3b82f6"
+                      strokeWidth={3}
+                      dot={false}
                       activeDot={{ r: 8, fill: '#3b82f6' }}
                     />
                   </LineChart>
                 )}
-                
+
                 {/* M1货币供应量累计涨跌幅图表 */}
                 {fullscreenState.chartType === 'cumulative' && (
                   <LineChart data={macroEconomicCumulative}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis 
-                      dataKey="date" 
+                    <XAxis
+                      dataKey="date"
                       stroke="#6b7280"
-                      tick={{ fontSize: 12 }} 
+                      tick={{ fontSize: 12 }}
                       interval={Math.ceil(macroEconomicCumulative.length / 10)}
                     />
-                    <YAxis 
+                    <YAxis
                       stroke="#6b7280"
-                      tick={{ fontSize: 12 }} 
+                      tick={{ fontSize: 12 }}
                     />
-                    <Tooltip 
-                      contentStyle={{ 
+                    <Tooltip
+                      contentStyle={{
                         backgroundColor: 'rgba(255, 255, 255, 0.95)',
                         border: '1px solid #e5e7eb',
                         borderRadius: '0.375rem',
@@ -423,41 +443,41 @@ export default function MarketTab({ macroEconomicData, macroEconomicCumulative, 
                       labelFormatter={(label) => `日期: ${label}`}
                     />
                     <Legend />
-                    <Line 
-                      type="monotone" 
-                      dataKey="cumulativeChange" 
-                      name="累计涨跌幅" 
-                      stroke="#10b981" 
-                      strokeWidth={3} 
-                      dot={false} 
+                    <Line
+                      type="monotone"
+                      dataKey="cumulativeChange"
+                      name="累计涨跌幅"
+                      stroke="#10b981"
+                      strokeWidth={3}
+                      dot={false}
                       activeDot={{ r: 8, fill: '#10b981' }}
                     />
                   </LineChart>
                 )}
-                
+
                 {/* GDP数据图表 */}
                 {fullscreenState.chartType === 'gdp' && (
                   <LineChart data={macroEconomicData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis 
-                      dataKey="date" 
+                    <XAxis
+                      dataKey="date"
                       stroke="#6b7280"
-                      tick={{ fontSize: 12 }} 
+                      tick={{ fontSize: 12 }}
                       interval={Math.ceil(macroEconomicData.length / 10)}
                     />
-                    <YAxis 
-                      yAxisId="left" 
+                    <YAxis
+                      yAxisId="left"
                       stroke="#6b7280"
-                      tick={{ fontSize: 12 }} 
+                      tick={{ fontSize: 12 }}
                     />
-                    <YAxis 
-                      yAxisId="right" 
-                      orientation="right" 
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
                       stroke="#6b7280"
-                      tick={{ fontSize: 12 }} 
+                      tick={{ fontSize: 12 }}
                     />
-                    <Tooltip 
-                      contentStyle={{ 
+                    <Tooltip
+                      contentStyle={{
                         backgroundColor: 'rgba(255, 255, 255, 0.95)',
                         border: '1px solid #e5e7eb',
                         borderRadius: '0.375rem',
@@ -474,46 +494,46 @@ export default function MarketTab({ macroEconomicData, macroEconomicCumulative, 
                       labelFormatter={(label) => `日期: ${label}`}
                     />
                     <Legend />
-                    <Line 
+                    <Line
                       yAxisId="left"
-                      type="monotone" 
-                      dataKey="gdp" 
-                      name="GDP总量" 
-                      stroke="#3b82f6" 
-                      strokeWidth={3} 
-                      dot={false} 
+                      type="monotone"
+                      dataKey="gdp"
+                      name="GDP总量"
+                      stroke="#3b82f6"
+                      strokeWidth={3}
+                      dot={false}
                       activeDot={{ r: 8, fill: '#3b82f6' }}
                     />
-                    <Line 
+                    <Line
                       yAxisId="right"
-                      type="monotone" 
-                      dataKey="gdpChangeRate" 
-                      name="GDP同比增长率" 
-                      stroke="#f59e0b" 
-                      strokeWidth={3} 
-                      dot={false} 
+                      type="monotone"
+                      dataKey="gdpChangeRate"
+                      name="GDP同比增长率"
+                      stroke="#f59e0b"
+                      strokeWidth={3}
+                      dot={false}
                       activeDot={{ r: 8, fill: '#f59e0b' }}
                     />
                   </LineChart>
                 )}
-                
+
                 {/* 巴菲特指标图表 */}
                 {fullscreenState.chartType === 'buffett' && (
                   <LineChart data={macroEconomicData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis 
-                      dataKey="date" 
+                    <XAxis
+                      dataKey="date"
                       stroke="#6b7280"
-                      tick={{ fontSize: 12 }} 
+                      tick={{ fontSize: 12 }}
                       interval={Math.ceil(macroEconomicData.length / 10)}
                     />
-                    <YAxis 
+                    <YAxis
                       stroke="#6b7280"
-                      tick={{ fontSize: 12 }} 
+                      tick={{ fontSize: 12 }}
                       domain={[0.5, 1.7]}
                     />
-                    <Tooltip 
-                      contentStyle={{ 
+                    <Tooltip
+                      contentStyle={{
                         backgroundColor: 'rgba(255, 255, 255, 0.95)',
                         border: '1px solid #e5e7eb',
                         borderRadius: '0.375rem',
@@ -524,13 +544,13 @@ export default function MarketTab({ macroEconomicData, macroEconomicCumulative, 
                       labelFormatter={(label) => `日期: ${label}`}
                     />
                     <Legend />
-                    <Line 
-                      type="monotone" 
-                      dataKey="buffettIndicator" 
-                      name="巴菲特指标" 
-                      stroke="#8b5cf6" 
-                      strokeWidth={3} 
-                      dot={false} 
+                    <Line
+                      type="monotone"
+                      dataKey="buffettIndicator"
+                      name="巴菲特指标"
+                      stroke="#8b5cf6"
+                      strokeWidth={3}
+                      dot={false}
                       activeDot={{ r: 8, fill: '#8b5cf6' }}
                     />
                   </LineChart>

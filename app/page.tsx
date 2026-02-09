@@ -336,6 +336,7 @@ export default function HomePage() {
           )}
           {activeTab === 'market' && (
             <MarketTab 
+              marketIndices={marketIndices}
               macroEconomicData={macroEconomicData}
               macroEconomicCumulative={macroEconomicCumulative}
               itemsPerRow={marketItemsPerRow}
