@@ -87,6 +87,19 @@ export interface PreciousMetalHistory {
   value: number;         // 价格
 }
 
+// 用户持仓接口
+export interface UserHolding {
+  code: string;          // 基金代码
+  name: string;          // 基金名称
+  shares: number;        // 持有份额
+  costPrice: number;     // 持仓成本价
+  currentPrice: number;  // 当前价格
+  totalValue: number;    // 总价值
+  profit: number;        // 盈亏
+  profitRate: number;    // 盈亏比例
+  type: string;          // 基金类型
+}
+
 // 模拟基金基本数据
 const fundBasicData: FundBasic[] = [
   {

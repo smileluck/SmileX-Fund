@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import Link from 'next/link';
 import { Search, Bell, Settings, ChevronDown, TrendingUp, BarChart2, Bookmark, Home, DollarSign, LineChart as LineChartIcon } from 'lucide-react';
-import { fundMockService, FundInfo, MarketIndex, MacroEconomicData, MacroEconomicCumulative, formatCurrency, formatPercentage } from '@/lib/mockData';
+import { fundMockService, FundInfo, MarketIndex, MacroEconomicData, MacroEconomicCumulative, UserHolding, formatCurrency, formatPercentage } from '@/lib/mockData';
 
 // 懒加载组件
 const FundTab = lazy(() => import('./components/FundTab'));
@@ -26,6 +26,8 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [fundType, setFundType] = useState('');
   const [riskLevel, setRiskLevel] = useState('');
+  // 持仓管理状态
+  const [userHoldings, setUserHoldings] = useState<UserHolding[]>([]);
   // 设置相关状态
   const [itemsPerRow, setItemsPerRow] = useState(2); // 贵金属默认值为 2
   const [marketItemsPerRow, setMarketItemsPerRow] = useState(2); // 市场默认值为 2
@@ -247,6 +249,155 @@ export default function HomePage() {
     setRiskLevel('');
   }, []);
 
+  // 计算持仓数据
+  const calculateHoldingData = useCallback((holding: {
+    code: string;
+    name: string;
+    shares: number;
+    costPrice: number;
+    type: string;
+  }): UserHolding => {
+    try {
+      // 验证输入数据
+      if (holding.shares <= 0 || holding.costPrice <= 0) {
+        throw new Error('持仓份额和成本价必须大于0');
+      }
+      
+      // 查找对应的基金信息以获取当前价格
+      const fund = funds.find(f => f.code === holding.code);
+      const currentPrice = fund?.valuation?.valuation || holding.costPrice;
+      
+      // 确保当前价格有效
+      const validCurrentPrice = typeof currentPrice === 'number' && !isNaN(currentPrice) && currentPrice > 0 ? currentPrice : holding.costPrice;
+      
+      // 计算总价值
+      const totalValue = holding.shares * validCurrentPrice;
+      
+      // 计算成本
+      const totalCost = holding.shares * holding.costPrice;
+      
+      // 计算盈亏
+      const profit = totalValue - totalCost;
+      
+      // 计算盈亏比例
+      const profitRate = totalCost > 0 ? (profit / totalCost) * 100 : 0;
+      
+      return {
+        code: holding.code,
+        name: holding.name || '未知基金',
+        shares: holding.shares,
+        costPrice: holding.costPrice,
+        currentPrice: validCurrentPrice,
+        totalValue,
+        profit,
+        profitRate,
+        type: holding.type || '未知类型'
+      };
+    } catch (error) {
+      console.error('计算持仓数据失败:', error);
+      // 返回默认值，确保函数不会抛出错误
+      return {
+        code: holding.code,
+        name: holding.name || '未知基金',
+        shares: holding.shares || 0,
+        costPrice: holding.costPrice || 0,
+        currentPrice: holding.costPrice || 0,
+        totalValue: 0,
+        profit: 0,
+        profitRate: 0,
+        type: holding.type || '未知类型'
+      };
+    }
+  }, [funds]);
+
+  // 添加持仓
+  const handleAddHolding = useCallback((holding: {
+    code: string;
+    name: string;
+    shares: number;
+    costPrice: number;
+    type: string;
+  }) => {
+    // 检查是否已存在相同代码的持仓
+    const existingIndex = userHoldings.findIndex(h => h.code === holding.code);
+    
+    if (existingIndex >= 0) {
+      // 如果已存在，更新持仓
+      const updatedHoldings = [...userHoldings];
+      const existingHolding = updatedHoldings[existingIndex];
+      
+      // 计算新的平均成本价
+      const totalCost = (existingHolding.shares * existingHolding.costPrice) + (holding.shares * holding.costPrice);
+      const totalShares = existingHolding.shares + holding.shares;
+      const newCostPrice = totalCost / totalShares;
+      
+      // 更新持仓数据
+      updatedHoldings[existingIndex] = calculateHoldingData({
+        code: holding.code,
+        name: holding.name,
+        shares: totalShares,
+        costPrice: newCostPrice,
+        type: holding.type
+      });
+      
+      setUserHoldings(updatedHoldings);
+    } else {
+      // 如果不存在，添加新持仓
+      const newHolding = calculateHoldingData(holding);
+      setUserHoldings([...userHoldings, newHolding]);
+    }
+  }, [userHoldings, calculateHoldingData]);
+
+  // 批量添加持仓
+  const handleBatchAddHolding = useCallback((holdings: {
+    code: string;
+    name: string;
+    shares: number;
+    costPrice: number;
+    type: string;
+  }[]) => {
+    const updatedHoldings = [...userHoldings];
+    
+    for (const holding of holdings) {
+      const existingIndex = updatedHoldings.findIndex(h => h.code === holding.code);
+      
+      if (existingIndex >= 0) {
+        // 如果已存在，更新持仓
+        const existingHolding = updatedHoldings[existingIndex];
+        
+        // 计算新的平均成本价
+        const totalCost = (existingHolding.shares * existingHolding.costPrice) + (holding.shares * holding.costPrice);
+        const totalShares = existingHolding.shares + holding.shares;
+        const newCostPrice = totalCost / totalShares;
+        
+        // 更新持仓数据
+        updatedHoldings[existingIndex] = calculateHoldingData({
+          code: holding.code,
+          name: holding.name,
+          shares: totalShares,
+          costPrice: newCostPrice,
+          type: holding.type
+        });
+      } else {
+        // 如果不存在，添加新持仓
+        const newHolding = calculateHoldingData(holding);
+        updatedHoldings.push(newHolding);
+      }
+    }
+    
+    setUserHoldings(updatedHoldings);
+  }, [userHoldings, calculateHoldingData]);
+
+  // 删除持仓
+  const handleDeleteHolding = useCallback((code: string) => {
+    setUserHoldings(userHoldings.filter(holding => holding.code !== code));
+  }, [userHoldings]);
+
+  // 批量删除持仓
+  const handleBatchDeleteHolding = useCallback((codes: string[]) => {
+    setUserHoldings(userHoldings.filter(holding => !codes.includes(holding.code)));
+  }, [userHoldings]);
+
   return (
     <div className="flex flex-col min-h-screen bg-zinc-50 dark:bg-black">
       {/* 顶部导航栏 */}
@@ -312,6 +463,7 @@ export default function HomePage() {
               fundHoldingsSummary={fundHoldingsSummary}
               funds={funds}
               filteredFunds={filteredFunds}
+              userHoldings={userHoldings}
               sortBy={sortBy}
               sortOrder={sortOrder}
               searchQuery={searchQuery}
@@ -322,6 +474,10 @@ export default function HomePage() {
               setSearchQuery={setSearchQuery}
               setFundType={setFundType}
               setRiskLevel={setRiskLevel}
+              onAddHolding={handleAddHolding}
+              onBatchAddHolding={handleBatchAddHolding}
+              onDeleteHolding={handleDeleteHolding}
+              onBatchDeleteHolding={handleBatchDeleteHolding}
               colorScheme={colorScheme}
             />
           )}

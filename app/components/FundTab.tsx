@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, Bookmark } from 'lucide-react';
-import { FundInfo, MarketIndex, formatCurrency, formatPercentage } from '@/lib/mockData';
+import { ChevronDown, Bookmark, Plus, Trash2, CheckSquare, Square, Edit2 } from 'lucide-react';
+import { FundInfo, MarketIndex, UserHolding, formatCurrency, formatPercentage } from '@/lib/mockData';
+import AddHoldingModal from './AddHoldingModal';
+import BatchAddHoldingModal from './BatchAddHoldingModal';
 
 interface FundTabProps {
   marketIndices: MarketIndex[];
   fundHoldingsSummary: any[];
   funds: FundInfo[];
   filteredFunds: FundInfo[];
+  userHoldings: UserHolding[];
   sortBy: 'valuation' | 'dailyChangeRate' | 'name';
   sortOrder: 'asc' | 'desc';
   searchQuery: string;
@@ -18,6 +21,22 @@ interface FundTabProps {
   setSearchQuery: (query: string) => void;
   setFundType: (type: string) => void;
   setRiskLevel: (level: string) => void;
+  onAddHolding: (holding: {
+    code: string;
+    name: string;
+    shares: number;
+    costPrice: number;
+    type: string;
+  }) => void;
+  onBatchAddHolding: (holdings: {
+    code: string;
+    name: string;
+    shares: number;
+    costPrice: number;
+    type: string;
+  }[]) => void;
+  onDeleteHolding: (code: string) => void;
+  onBatchDeleteHolding: (codes: string[]) => void;
   colorScheme?: 'red-up' | 'red-down';
 }
 
@@ -30,6 +49,7 @@ export default function FundTab({
   fundHoldingsSummary, 
   funds, 
   filteredFunds, 
+  userHoldings, 
   sortBy, 
   sortOrder, 
   searchQuery, 
@@ -40,10 +60,21 @@ export default function FundTab({
   setSearchQuery, 
   setFundType, 
   setRiskLevel,
+  onAddHolding,
+  onBatchAddHolding,
+  onDeleteHolding,
+  onBatchDeleteHolding,
   colorScheme = 'red-up'
 }: FundTabProps) {
   // 定义当前激活的tab
   const [activeTab, setActiveTab] = useState<'holdings' | 'valuation'>('holdings');
+  
+  // 模态框状态
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [batchAddModalOpen, setBatchAddModalOpen] = useState(false);
+  
+  // 批量选择状态
+  const [selectedHoldings, setSelectedHoldings] = useState<string[]>([]);
   
   // 根据 colorScheme 获取涨跌颜色类名
   const getChangeColorClass = (isUp: boolean) => {
@@ -81,36 +112,136 @@ export default function FundTab({
         <div className="mt-4">
           {/* 基金持仓 */}
           {activeTab === 'holdings' && (
-            <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 p-4">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="border-b border-zinc-200 dark:border-zinc-800">
-                      <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">行业</th>
-                      <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">持仓比例</th>
-                      <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">持仓数量</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {fundHoldingsSummary.map((item, i) => (
-                      <tr key={i} className="border-b border-zinc-200 dark:border-zinc-800 last:border-b-0">
-                        <td className="py-3 px-4 text-sm text-zinc-900 dark:text-white">{item.industry}</td>
-                        <td className="py-3 px-4 text-sm text-zinc-900 dark:text-white">
-                          <div className="flex items-center gap-2">
-                            <span>{item.proportion}%</span>
-                            <div className="flex-1 bg-zinc-200 dark:bg-zinc-700 rounded-full h-2">
-                              <div 
-                                className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full" 
-                                style={{ width: `${item.proportion}%` }}
-                              ></div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-sm text-zinc-900 dark:text-white">{item.count}只</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div>
+              {/* 持仓操作按钮 */}
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">我的持仓</h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setBatchAddModalOpen(true)}
+                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md flex items-center gap-1"
+                  >
+                    <Plus className="h-4 w-4" />
+                    批量添加
+                  </button>
+                  <button
+                    onClick={() => setAddModalOpen(true)}
+                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md flex items-center gap-1"
+                  >
+                    <Plus className="h-4 w-4" />
+                    添加持仓
+                  </button>
+                  {selectedHoldings.length > 0 && (
+                    <button
+                      onClick={() => onBatchDeleteHolding(selectedHoldings)}
+                      className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded-md flex items-center gap-1"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      批量删除
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              {/* 用户持仓列表 */}
+              <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800">
+                {userHoldings.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800">
+                          <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">
+                            <button
+                              onClick={() => {
+                                if (selectedHoldings.length === userHoldings.length) {
+                                  setSelectedHoldings([]);
+                                } else {
+                                  setSelectedHoldings(userHoldings.map(h => h.code));
+                                }
+                              }}
+                              className="flex items-center gap-1"
+                            >
+                              {selectedHoldings.length === userHoldings.length ? (
+                                <CheckSquare className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                              ) : (
+                                <Square className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
+                              )}
+                            </button>
+                          </th>
+                          <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">基金名称</th>
+                          <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">代码</th>
+                          <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">类型</th>
+                          <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">持仓份额</th>
+                          <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">成本价</th>
+                          <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">当前价</th>
+                          <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">总价值</th>
+                          <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">盈亏</th>
+                          <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">盈亏比例</th>
+                          <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {userHoldings.map((holding, i) => {
+                          const isUp = holding.profit > 0;
+                          return (
+                            <tr key={i} className="border-b border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800">
+                              <td className="py-3 px-4">
+                                <button
+                                  onClick={() => {
+                                    if (selectedHoldings.includes(holding.code)) {
+                                      setSelectedHoldings(selectedHoldings.filter(c => c !== holding.code));
+                                    } else {
+                                      setSelectedHoldings([...selectedHoldings, holding.code]);
+                                    }
+                                  }}
+                                >
+                                  {selectedHoldings.includes(holding.code) ? (
+                                    <CheckSquare className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                  ) : (
+                                    <Square className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
+                                  )}
+                                </button>
+                              </td>
+                              <td className="py-3 px-4 text-sm text-zinc-900 dark:text-white">{holding.name}</td>
+                              <td className="py-3 px-4 text-sm text-zinc-600 dark:text-zinc-400">{holding.code}</td>
+                              <td className="py-3 px-4 text-sm text-zinc-600 dark:text-zinc-400">{holding.type}</td>
+                              <td className="py-3 px-4 text-sm text-zinc-900 dark:text-white">{holding.shares.toFixed(2)}</td>
+                              <td className="py-3 px-4 text-sm text-zinc-900 dark:text-white">{formatCurrency(holding.costPrice)}</td>
+                              <td className="py-3 px-4 text-sm text-zinc-900 dark:text-white">{formatCurrency(holding.currentPrice)}</td>
+                              <td className="py-3 px-4 text-sm text-zinc-900 dark:text-white">{formatCurrency(holding.totalValue)}</td>
+                              <td className={`py-3 px-4 text-sm font-medium ${getChangeColorClass(isUp)}`}>
+                                {isUp ? '+' : ''}{formatCurrency(holding.profit)}
+                              </td>
+                              <td className={`py-3 px-4 text-sm font-medium ${getChangeColorClass(isUp)}`}>
+                                {isUp ? '+' : ''}{formatPercentage(holding.profitRate)}
+                              </td>
+                              <td className="py-3 px-4 text-sm">
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => onDeleteHolding(holding.code)}
+                                    className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                  <Link href={`/funds/${holding.code}`}>
+                                    <button className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300">
+                                      <Edit2 className="h-4 w-4" />
+                                    </button>
+                                  </Link>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-8 text-center">
+                    <p className="text-zinc-500 dark:text-zinc-400">暂无持仓</p>
+                    <p className="text-zinc-400 dark:text-zinc-500 text-sm mt-2">点击上方按钮添加持仓</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -286,6 +417,19 @@ export default function FundTab({
           )}
         </div>
       </div>
+      
+      {/* 模态框 */}
+      <AddHoldingModal
+        isOpen={addModalOpen}
+        onClose={() => setAddModalOpen(false)}
+        onAddHolding={onAddHolding}
+      />
+      <BatchAddHoldingModal
+        isOpen={batchAddModalOpen}
+        onClose={() => setBatchAddModalOpen(false)}
+        onBatchAddHolding={onBatchAddHolding}
+        userHoldings={userHoldings}
+      />
     </div>
   );
 }
