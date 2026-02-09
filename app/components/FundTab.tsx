@@ -27,6 +27,7 @@ interface FundTabProps {
     shares: number;
     costPrice: number;
     type: string;
+    industryInfo: string;
   }) => void;
   onBatchAddHolding: (holdings: {
     code: string;
@@ -34,6 +35,7 @@ interface FundTabProps {
     shares: number;
     costPrice: number;
     type: string;
+    industryInfo: string;
   }[]) => void;
   onDeleteHolding: (code: string) => void;
   onBatchDeleteHolding: (codes: string[]) => void;
@@ -171,10 +173,8 @@ export default function FundTab({
                           <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">基金名称</th>
                           <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">代码</th>
                           <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">类型</th>
-                          <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">持仓份额</th>
-                          <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">成本价</th>
-                          <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">当前价</th>
-                          <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">总价值</th>
+                          <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">行业信息</th>
+                          <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">持仓金额</th>
                           <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">盈亏</th>
                           <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">盈亏比例</th>
                           <th className="py-3 px-4 text-sm font-medium text-zinc-600 dark:text-zinc-400">操作</th>
@@ -205,9 +205,7 @@ export default function FundTab({
                               <td className="py-3 px-4 text-sm text-zinc-900 dark:text-white">{holding.name}</td>
                               <td className="py-3 px-4 text-sm text-zinc-600 dark:text-zinc-400">{holding.code}</td>
                               <td className="py-3 px-4 text-sm text-zinc-600 dark:text-zinc-400">{holding.type}</td>
-                              <td className="py-3 px-4 text-sm text-zinc-900 dark:text-white">{holding.shares.toFixed(2)}</td>
-                              <td className="py-3 px-4 text-sm text-zinc-900 dark:text-white">{formatCurrency(holding.costPrice)}</td>
-                              <td className="py-3 px-4 text-sm text-zinc-900 dark:text-white">{formatCurrency(holding.currentPrice)}</td>
+                              <td className="py-3 px-4 text-sm text-zinc-600 dark:text-zinc-400">{holding.industryInfo || '---'}</td>
                               <td className="py-3 px-4 text-sm text-zinc-900 dark:text-white">{formatCurrency(holding.totalValue)}</td>
                               <td className={`py-3 px-4 text-sm font-medium ${getChangeColorClass(isUp)}`}>
                                 {isUp ? '+' : ''}{formatCurrency(holding.profit)}

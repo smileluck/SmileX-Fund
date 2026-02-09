@@ -32,6 +32,7 @@ export interface FundSearchResult {
     DWJZ: number;
     FSRQ: string;
     NAVURL: string;
+    FUND_SIZE?: string; // 基金规模
   };
   StockHolder: any;
   ZTJJInfo: any[];

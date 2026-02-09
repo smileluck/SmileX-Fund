@@ -12,10 +12,15 @@ export interface BatchAddItem {
   shares: number;
   costPrice: number;
   fundName?: string;
-  fundSize?: string;
   holdingAmount?: number;
   holdingProfit?: number;
   error?: string;
+  fundType?: string; // 基金类型
+  fundCompany?: string; // 基金公司
+  fundManager?: string; // 基金经理
+  latestNav?: number; // 最新净值
+  navDate?: string; // 净值日期
+  industryInfo?: string; // 行业信息
 }
 
 /**

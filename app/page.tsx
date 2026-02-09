@@ -253,28 +253,43 @@ export default function HomePage() {
   const calculateHoldingData = useCallback((holding: {
     code: string;
     name: string;
-    shares: number;
-    costPrice: number;
+    shares?: number;
+    costPrice?: number;
+    holdingAmount?: number;
     type: string;
+    industryInfo?: string;
   }): UserHolding => {
     try {
-      // 验证输入数据
-      if (holding.shares <= 0 || holding.costPrice <= 0) {
-        throw new Error('持仓份额和成本价必须大于0');
-      }
-      
       // 查找对应的基金信息以获取当前价格
       const fund = funds.find(f => f.code === holding.code);
-      const currentPrice = fund?.valuation?.valuation || holding.costPrice;
+      const currentPrice = fund?.valuation?.valuation || 1;
       
       // 确保当前价格有效
-      const validCurrentPrice = typeof currentPrice === 'number' && !isNaN(currentPrice) && currentPrice > 0 ? currentPrice : holding.costPrice;
+      const validCurrentPrice = typeof currentPrice === 'number' && !isNaN(currentPrice) && currentPrice > 0 ? currentPrice : 1;
       
-      // 计算总价值
-      const totalValue = holding.shares * validCurrentPrice;
+      let totalValue = 0;
+      let totalCost = 0;
+      let shares = 0;
+      let costPrice = 0;
       
-      // 计算成本
-      const totalCost = holding.shares * holding.costPrice;
+      // 如果提供了持仓金额，使用它作为总价值
+      if (holding.holdingAmount && holding.holdingAmount > 0) {
+        totalValue = holding.holdingAmount;
+        // 根据当前价格计算份额
+        shares = totalValue / validCurrentPrice;
+        // 假设成本价等于当前价格，实际应用中可能需要从其他地方获取
+        costPrice = validCurrentPrice;
+        totalCost = shares * costPrice;
+      } 
+      // 否则使用传统的份额和成本价计算
+      else if (holding.shares && holding.shares > 0 && holding.costPrice && holding.costPrice > 0) {
+        shares = holding.shares;
+        costPrice = holding.costPrice;
+        totalValue = shares * validCurrentPrice;
+        totalCost = shares * costPrice;
+      } else {
+        throw new Error('持仓金额或持仓份额和成本价必须大于0');
+      }
       
       // 计算盈亏
       const profit = totalValue - totalCost;
@@ -285,13 +300,14 @@ export default function HomePage() {
       return {
         code: holding.code,
         name: holding.name || '未知基金',
-        shares: holding.shares,
-        costPrice: holding.costPrice,
+        shares,
+        costPrice,
         currentPrice: validCurrentPrice,
         totalValue,
         profit,
         profitRate,
-        type: holding.type || '未知类型'
+        type: holding.type || '未知类型',
+        industryInfo: holding.industryInfo
       };
     } catch (error) {
       console.error('计算持仓数据失败:', error);
@@ -302,10 +318,11 @@ export default function HomePage() {
         shares: holding.shares || 0,
         costPrice: holding.costPrice || 0,
         currentPrice: holding.costPrice || 0,
-        totalValue: 0,
+        totalValue: holding.holdingAmount || 0,
         profit: 0,
         profitRate: 0,
-        type: holding.type || '未知类型'
+        type: holding.type || '未知类型',
+        industryInfo: holding.industryInfo
       };
     }
   }, [funds]);
@@ -314,9 +331,11 @@ export default function HomePage() {
   const handleAddHolding = useCallback((holding: {
     code: string;
     name: string;
-    shares: number;
-    costPrice: number;
+    shares?: number;
+    costPrice?: number;
+    holdingAmount?: number;
     type: string;
+    industryInfo?: string;
   }) => {
     // 检查是否已存在相同代码的持仓
     const existingIndex = userHoldings.findIndex(h => h.code === holding.code);
@@ -326,18 +345,16 @@ export default function HomePage() {
       const updatedHoldings = [...userHoldings];
       const existingHolding = updatedHoldings[existingIndex];
       
-      // 计算新的平均成本价
-      const totalCost = (existingHolding.shares * existingHolding.costPrice) + (holding.shares * holding.costPrice);
-      const totalShares = existingHolding.shares + holding.shares;
-      const newCostPrice = totalCost / totalShares;
+      // 计算新的总价值（持仓金额）
+      const newTotalValue = (existingHolding.totalValue || 0) + (holding.holdingAmount || (holding.shares || 0) * (holding.costPrice || 0));
       
       // 更新持仓数据
       updatedHoldings[existingIndex] = calculateHoldingData({
         code: holding.code,
         name: holding.name,
-        shares: totalShares,
-        costPrice: newCostPrice,
-        type: holding.type
+        holdingAmount: newTotalValue,
+        type: holding.type,
+        industryInfo: holding.industryInfo || existingHolding.industryInfo
       });
       
       setUserHoldings(updatedHoldings);
@@ -352,9 +369,11 @@ export default function HomePage() {
   const handleBatchAddHolding = useCallback((holdings: {
     code: string;
     name: string;
-    shares: number;
-    costPrice: number;
+    shares?: number;
+    costPrice?: number;
+    holdingAmount?: number;
     type: string;
+    industryInfo?: string;
   }[]) => {
     const updatedHoldings = [...userHoldings];
     
@@ -365,18 +384,16 @@ export default function HomePage() {
         // 如果已存在，更新持仓
         const existingHolding = updatedHoldings[existingIndex];
         
-        // 计算新的平均成本价
-        const totalCost = (existingHolding.shares * existingHolding.costPrice) + (holding.shares * holding.costPrice);
-        const totalShares = existingHolding.shares + holding.shares;
-        const newCostPrice = totalCost / totalShares;
+        // 计算新的总价值（持仓金额）
+        const newTotalValue = (existingHolding.totalValue || 0) + (holding.holdingAmount || (holding.shares || 0) * (holding.costPrice || 0));
         
-        // 更新持仓数据
+        // 更新持仓数据，使用新的总价值
         updatedHoldings[existingIndex] = calculateHoldingData({
           code: holding.code,
           name: holding.name,
-          shares: totalShares,
-          costPrice: newCostPrice,
-          type: holding.type
+          holdingAmount: newTotalValue,
+          type: holding.type,
+          industryInfo: holding.industryInfo || existingHolding.industryInfo
         });
       } else {
         // 如果不存在，添加新持仓

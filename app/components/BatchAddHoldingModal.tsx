@@ -12,6 +12,7 @@ interface BatchAddHoldingModalProps {
     shares: number;
     costPrice: number;
     type: string;
+    industryInfo: string;
   }[]) => void;
   userHoldings?: {
     code: string;
@@ -32,7 +33,7 @@ interface BatchAddHoldingModalProps {
  */
 export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHolding, userHoldings = [] }: BatchAddHoldingModalProps) {
   // 状态管理
-  const [items, setItems] = useState<BatchAddItem[]>([{ code: '', shares: 0, costPrice: 0, fundName: '', fundSize: '', holdingAmount: 0, holdingProfit: 0, error: '' }]);
+  const [items, setItems] = useState<BatchAddItem[]>([{ code: '', shares: 0, costPrice: 0, fundName: '', holdingAmount: 0, holdingProfit: 0, error: '', fundType: '', fundCompany: '', fundManager: '', latestNav: 0, navDate: '', industryInfo: '' }]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<BatchAddResult[]>([]);
@@ -41,7 +42,7 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
   // 当模态框打开时重置状态
   useEffect(() => {
     if (isOpen) {
-      setItems([{ code: '', shares: 0, costPrice: 0, fundName: '', fundSize: '', holdingAmount: 0, holdingProfit: 0, error: '' }]);
+      setItems([{ code: '', shares: 0, costPrice: 0, fundName: '', holdingAmount: 0, holdingProfit: 0, error: '', fundType: '', fundCompany: '', fundManager: '', latestNav: 0, navDate: '', industryInfo: '' }]);
       setLoading(false);
       setError(null);
       setResults([]);
@@ -52,7 +53,7 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
   // 添加新的输入行
   const handleAddItem = () => {
     if (items.length < 10) {
-      setItems([...items, { code: '', shares: 0, costPrice: 0, fundName: '', fundSize: '', holdingAmount: 0, holdingProfit: 0, error: '' }]);
+      setItems([...items, { code: '', shares: 0, costPrice: 0, fundName: '', holdingAmount: 0, holdingProfit: 0, error: '', fundType: '', fundCompany: '', fundManager: '', latestNav: 0, navDate: '', industryInfo: '' }]);
     }
   };
 
@@ -91,10 +92,28 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
       try {
         const fundInfo = await searchFund(value as string);
         if (fundInfo) {
+          console.log('基金信息:', fundInfo);
+          console.log('FundBaseInfo:', fundInfo.FundBaseInfo);
+          console.log('FUNDTYPE:', fundInfo.FundBaseInfo?.FTYPE);
+          console.log('ZTJJInfo:', fundInfo.ZTJJInfo);
+          
+          // 从ZTJJInfo中提取行业信息
+          let industryInfo = '';
+          if (fundInfo.ZTJJInfo && fundInfo.ZTJJInfo.length > 0) {
+            // 假设ZTJJInfo中的每个元素都有行业名称字段
+            // 这里根据实际数据结构调整
+            industryInfo = fundInfo.ZTJJInfo.map((item: any) => item.INDUSTRY || item.name ||item.TTYPENAME || item.industry ).filter(Boolean).join(', ') || '未知';
+          }
+          
           newItems[index] = {
             ...newItems[index],
-            fundName: fundInfo.NAME,
-            fundSize: fundInfo.FundBaseInfo ? fundInfo.FundBaseInfo.DWJZ + '元' : '未知'
+            fundName: fundInfo.NAME || '未知',
+            fundType: fundInfo.FundBaseInfo?.FTYPE || fundInfo.CATEGORYDESC || '未知',
+            fundCompany: fundInfo.FundBaseInfo?.JJGS || '未知',
+            fundManager: fundInfo.FundBaseInfo?.JJJL || '未知',
+            latestNav: fundInfo.FundBaseInfo?.DWJZ || 0,
+            navDate: fundInfo.FundBaseInfo?.FSRQ || '',
+            industryInfo: industryInfo || '未知'
           };
         } else {
           newItems[index].error = '未找到该基金信息';
@@ -204,7 +223,8 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
             costPrice: item?.costPrice || 0,
             holdingAmount: item?.holdingAmount || 0,
             holdingProfit: item?.holdingProfit || 0,
-            type: '' // 类型将在主页面中补充
+            type: item?.fundType || '未知类型',
+            industryInfo: item?.industryInfo || '未知'
           };
         });
 
@@ -225,7 +245,7 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
   // 处理模态框关闭
   const handleClose = () => {
     // 重置状态
-    setItems([{ code: '', shares: 0, costPrice: 0, fundName: '', fundSize: '', holdingAmount: 0, holdingProfit: 0, error: '' }]);
+    setItems([{ code: '', shares: 0, costPrice: 0, fundName: '', holdingAmount: 0, holdingProfit: 0, error: '', fundType: '', fundCompany: '', fundManager: '', latestNav: 0, navDate: '', industryInfo: '' }]);
     setError(null);
     setResults([]);
     setShowResults(false);
@@ -356,7 +376,16 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
                             {item.fundName || '---'}
                           </div>
                           <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                            {item.fundSize || '---'}
+                            {item.fundType || '---'} | {item.fundCompany || '---'}
+                          </div>
+                          <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                            基金经理：{item.fundManager || '---'}
+                          </div>
+                          <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                            最新净值：{item.latestNav || '---'} ({item.navDate || '---'})
+                          </div>
+                          <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                            行业信息：{item.industryInfo || '---'}
                           </div>
                         </td>
                         <td className="px-3 py-3 whitespace-nowrap">

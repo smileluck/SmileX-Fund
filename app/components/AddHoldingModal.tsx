@@ -10,7 +10,10 @@ interface AddHoldingModalProps {
     name: string;
     shares: number;
     costPrice: number;
+    holdingAmount: number;
+    holdingProfit: number;
     type: string;
+    industryInfo: string;
   }) => void;
 }
 
@@ -21,8 +24,8 @@ interface AddHoldingModalProps {
 export default function AddHoldingModal({ isOpen, onClose, onAddHolding }: AddHoldingModalProps) {
   // 状态管理
   const [fundCode, setFundCode] = useState('');
-  const [shares, setShares] = useState('');
-  const [costPrice, setCostPrice] = useState('');
+  const [holdingAmount, setHoldingAmount] = useState('0');
+  const [holdingProfit, setHoldingProfit] = useState('0');
   const [searchResult, setSearchResult] = useState<FundSearchResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,23 +67,34 @@ export default function AddHoldingModal({ isOpen, onClose, onAddHolding }: AddHo
       return;
     }
 
-    if (!shares || parseFloat(shares) <= 0) {
-      setError('请输入有效的持仓份额');
+    if (!holdingAmount || isNaN(parseFloat(holdingAmount)) || parseFloat(holdingAmount) < 0) {
+      setError('请输入有效的持仓金额');
       return;
     }
 
-    if (!costPrice || parseFloat(costPrice) <= 0) {
-      setError('请输入有效的成本价');
+    if (holdingProfit && isNaN(parseFloat(holdingProfit))) {
+      setError('请输入有效的持仓盈亏');
       return;
+    }
+
+    // 提取行业信息
+    let industryInfo = '';
+    if (searchResult.ZTJJInfo && searchResult.ZTJJInfo.length > 0) {
+      industryInfo = searchResult.ZTJJInfo.map((item: any) => item.INDUSTRY || item.name || item.TTYPENAME || item.industry).filter(Boolean).join(', ') || '未知';
+    } else {
+      industryInfo = '未知';
     }
 
     // 构建持仓信息
     const holding = {
       code: searchResult.CODE,
       name: searchResult.NAME,
-      shares: parseFloat(shares),
-      costPrice: parseFloat(costPrice),
-      type: searchResult.FundBaseInfo.FTYPE || '未知类型'
+      shares: 0, // 兼容旧结构，设置为0
+      costPrice: 0, // 兼容旧结构，设置为0
+      holdingAmount: parseFloat(holdingAmount),
+      holdingProfit: parseFloat(holdingProfit) || 0,
+      type: searchResult.FundBaseInfo.FTYPE || '未知类型',
+      industryInfo: industryInfo
     };
 
     // 调用添加持仓回调
@@ -91,8 +105,8 @@ export default function AddHoldingModal({ isOpen, onClose, onAddHolding }: AddHo
     setTimeout(() => {
       setSuccess(false);
       setFundCode('');
-      setShares('');
-      setCostPrice('');
+      setHoldingAmount('0');
+      setHoldingProfit('0');
       setSearchResult(null);
       onClose();
     }, 1500);
@@ -102,8 +116,8 @@ export default function AddHoldingModal({ isOpen, onClose, onAddHolding }: AddHo
   const handleClose = () => {
     // 重置状态
     setFundCode('');
-    setShares('');
-    setCostPrice('');
+    setHoldingAmount('0');
+    setHoldingProfit('0');
     setSearchResult(null);
     setError(null);
     setSuccess(false);
@@ -188,6 +202,18 @@ export default function AddHoldingModal({ isOpen, onClose, onAddHolding }: AddHo
                 <p className="text-sm text-zinc-600 dark:text-zinc-400">
                   最新净值：{searchResult.FundBaseInfo.DWJZ} ({searchResult.FundBaseInfo.FSRQ})
                 </p>
+                {/* 行业信息 */}
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                  行业信息：{(() => {
+                    let industryInfo = '';
+                    if (searchResult.ZTJJInfo && searchResult.ZTJJInfo.length > 0) {
+                      industryInfo = searchResult.ZTJJInfo.map((item: any) => item.INDUSTRY || item.name || item.TTYPENAME || item.industry).filter(Boolean).join(', ') || '未知';
+                    } else {
+                      industryInfo = '未知';
+                    }
+                    return industryInfo;
+                  })()}
+                </p>
               </div>
             )}
 
@@ -196,13 +222,13 @@ export default function AddHoldingModal({ isOpen, onClose, onAddHolding }: AddHo
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    持仓份额
+                    持仓金额
                   </label>
                   <input
                     type="number"
-                    value={shares}
-                    onChange={(e) => setShares(e.target.value)}
-                    placeholder="请输入持仓份额"
+                    value={holdingAmount}
+                    onChange={(e) => setHoldingAmount(e.target.value)}
+                    placeholder="请输入持仓金额"
                     min="0"
                     step="0.01"
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-zinc-800 dark:text-white"
@@ -211,14 +237,13 @@ export default function AddHoldingModal({ isOpen, onClose, onAddHolding }: AddHo
 
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
-                    成本价
+                    持仓盈亏
                   </label>
                   <input
                     type="number"
-                    value={costPrice}
-                    onChange={(e) => setCostPrice(e.target.value)}
-                    placeholder="请输入成本价"
-                    min="0"
+                    value={holdingProfit}
+                    onChange={(e) => setHoldingProfit(e.target.value)}
+                    placeholder="请输入持仓盈亏"
                     step="0.01"
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-zinc-800 dark:text-white"
                   />
@@ -237,7 +262,7 @@ export default function AddHoldingModal({ isOpen, onClose, onAddHolding }: AddHo
               <button
                 onClick={handleAddHolding}
                 className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                disabled={!searchResult || !shares || !costPrice}
+                disabled={!searchResult || !holdingAmount}
               >
                 添加持仓
               </button>

@@ -9,6 +9,7 @@ export interface FundBasic {
   riskLevel: string;     // 风险等级
   manager: string;       // 基金经理
   establishedDate: string; // 成立日期
+  fundSize: string;      // 基金规模
 }
 
 // 基金实时估值接口
@@ -98,6 +99,7 @@ export interface UserHolding {
   profit: number;        // 盈亏
   profitRate: number;    // 盈亏比例
   type: string;          // 基金类型
+  industryInfo?: string; // 行业信息
 }
 
 // 模拟基金基本数据
@@ -108,7 +110,8 @@ const fundBasicData: FundBasic[] = [
     type: '混合型',
     riskLevel: '中高风险',
     manager: '巩怀志',
-    establishedDate: '2001-12-18'
+    establishedDate: '2001-12-18',
+    fundSize: '32.56亿'
   },
   {
     code: '110022',
@@ -116,7 +119,8 @@ const fundBasicData: FundBasic[] = [
     type: '股票型',
     riskLevel: '高风险',
     manager: '萧楠',
-    establishedDate: '2010-08-20'
+    establishedDate: '2010-08-20',
+    fundSize: '156.78亿'
   },
   {
     code: '001475',
@@ -124,7 +128,8 @@ const fundBasicData: FundBasic[] = [
     type: '混合型',
     riskLevel: '高风险',
     manager: '何崇恺',
-    establishedDate: '2015-06-19'
+    establishedDate: '2015-06-19',
+    fundSize: '89.34亿'
   },
   {
     code: '000209',
@@ -132,7 +137,8 @@ const fundBasicData: FundBasic[] = [
     type: '混合型',
     riskLevel: '中高风险',
     manager: '孙浩中',
-    establishedDate: '2013-07-24'
+    establishedDate: '2013-07-24',
+    fundSize: '15.67亿'
   },
   {
     code: '003095',
@@ -140,7 +146,8 @@ const fundBasicData: FundBasic[] = [
     type: '混合型',
     riskLevel: '中高风险',
     manager: '葛兰',
-    establishedDate: '2016-09-29'
+    establishedDate: '2016-09-29',
+    fundSize: '234.56亿'
   },
   {
     code: '001511',
@@ -148,7 +155,8 @@ const fundBasicData: FundBasic[] = [
     type: '混合型',
     riskLevel: '中风险',
     manager: '乔迁',
-    establishedDate: '2015-01-21'
+    establishedDate: '2015-01-21',
+    fundSize: '102.34亿'
   },
   {
     code: '000689',
@@ -156,7 +164,8 @@ const fundBasicData: FundBasic[] = [
     type: '混合型',
     riskLevel: '中高风险',
     manager: '崔宸龙',
-    establishedDate: '2014-08-20'
+    establishedDate: '2014-08-20',
+    fundSize: '78.92亿'
   },
   {
     code: '001480',
@@ -164,7 +173,8 @@ const fundBasicData: FundBasic[] = [
     type: '股票型',
     riskLevel: '高风险',
     manager: '王伟',
-    establishedDate: '2015-06-19'
+    establishedDate: '2015-06-19',
+    fundSize: '45.67亿'
   }
 ];
 
