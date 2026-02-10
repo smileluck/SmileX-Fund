@@ -9,17 +9,17 @@ interface BatchAddHoldingModalProps {
   onBatchAddHolding: (holdings: {
     code: string;
     name: string;
-    shares: number;
-    costPrice: number;
+    holdingAmount: number;
+    holdingProfit: number;
     type: string;
     industryInfo: string;
     walletId: string;
   }[]) => void;
   userHoldings?: {
     code: string;
-    name: string;
-    shares: number;
-    costPrice: number;
+    fundName: string;
+    holdingAmount: number;
+    holdingProfit: number;
     currentPrice: number;
     totalValue: number;
     profit: number;
@@ -35,7 +35,7 @@ interface BatchAddHoldingModalProps {
  */
 export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHolding, userHoldings = [], currentWalletId }: BatchAddHoldingModalProps) {
   // 状态管理
-  const [items, setItems] = useState<BatchAddItem[]>([{ code: '', shares: 0, costPrice: 0, fundName: '', holdingAmount: 0, holdingProfit: 0, error: '', fundType: '', fundCompany: '', fundManager: '', latestNav: 0, navDate: '', industryInfo: '' }]);
+  const [items, setItems] = useState<BatchAddItem[]>([{ code: '', holdingAmount: 0, holdingProfit: 0, fundName: '', error: '', fundType: '', fundCompany: '', fundManager: '', latestNav: 0, navDate: '', industryInfo: '' }]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<BatchAddResult[]>([]);
@@ -44,7 +44,7 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
   // 当模态框打开时重置状态
   useEffect(() => {
     if (isOpen) {
-      setItems([{ code: '', shares: 0, costPrice: 0, fundName: '', holdingAmount: 0, holdingProfit: 0, error: '', fundType: '', fundCompany: '', fundManager: '', latestNav: 0, navDate: '', industryInfo: '' }]);
+      setItems([{ code: '', holdingAmount: 0, holdingProfit: 0, fundName: '', error: '', fundType: '', fundCompany: '', fundManager: '', latestNav: 0, navDate: '', industryInfo: '' }]);
       setLoading(false);
       setError(null);
       setResults([]);
@@ -55,7 +55,7 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
   // 添加新的输入行
   const handleAddItem = () => {
     if (items.length < 10) {
-      setItems([...items, { code: '', shares: 0, costPrice: 0, fundName: '', holdingAmount: 0, holdingProfit: 0, error: '', fundType: '', fundCompany: '', fundManager: '', latestNav: 0, navDate: '', industryInfo: '' }]);
+      setItems([...items, { code: '', holdingAmount: 0, holdingProfit: 0, fundName: '', error: '', fundType: '', fundCompany: '', fundManager: '', latestNav: 0, navDate: '', industryInfo: '' }]);
     }
   };
 
@@ -221,8 +221,6 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
           return {
             code: result.code,
             name: result.name || '',
-            shares: item?.shares || 0,
-            costPrice: item?.costPrice || 0,
             holdingAmount: item?.holdingAmount || 0,
             holdingProfit: item?.holdingProfit || 0,
             type: item?.fundType || '未知类型',
@@ -248,7 +246,7 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
   // 处理模态框关闭
   const handleClose = () => {
     // 重置状态
-    setItems([{ code: '', shares: 0, costPrice: 0, fundName: '', holdingAmount: 0, holdingProfit: 0, error: '', fundType: '', fundCompany: '', fundManager: '', latestNav: 0, navDate: '', industryInfo: '' }]);
+    setItems([{ code: '', fundName: '', holdingAmount: 0, holdingProfit: 0, error: '', fundType: '', fundCompany: '', fundManager: '', latestNav: 0, navDate: '', industryInfo: '' }]);
     setError(null);
     setResults([]);
     setShowResults(false);

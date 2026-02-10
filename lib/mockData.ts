@@ -98,9 +98,9 @@ export interface Wallet {
 // 用户持仓接口
 export interface UserHolding {
   code: string;          // 基金代码
-  name: string;          // 基金名称
-  shares: number;        // 持有份额
-  costPrice: number;     // 持仓成本价
+  fundName: string;      // 基金名称
+  holdingAmount: number; // 持仓金额
+  holdingProfit: number; // 持仓盈亏
   currentPrice: number;  // 当前价格
   totalValue: number;    // 总价值
   profit: number;        // 盈亏

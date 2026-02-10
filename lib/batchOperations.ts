@@ -9,11 +9,9 @@ import { searchFund } from './api';
  */
 export interface BatchAddItem {
   code: string;
-  shares: number;
-  costPrice: number;
   fundName?: string;
-  holdingAmount?: number;
-  holdingProfit?: number;
+  holdingAmount: number;
+  holdingProfit: number;
   error?: string;
   fundType?: string; // 基金类型
   fundCompany?: string; // 基金公司

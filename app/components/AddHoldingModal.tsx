@@ -9,7 +9,6 @@ interface AddHoldingModalProps {
     code: string;
     name: string;
     shares: number;
-    costPrice: number;
     holdingAmount: number;
     holdingProfit: number;
     type: string;
@@ -92,7 +91,6 @@ export default function AddHoldingModal({ isOpen, onClose, onAddHolding, current
       code: searchResult.CODE,
       name: searchResult.NAME,
       shares: 0, // 兼容旧结构，设置为0
-      costPrice: 0, // 兼容旧结构，设置为0
       holdingAmount: parseFloat(holdingAmount),
       holdingProfit: parseFloat(holdingProfit) || 0,
       type: searchResult.FundBaseInfo.FTYPE || '未知类型',
@@ -106,12 +104,7 @@ export default function AddHoldingModal({ isOpen, onClose, onAddHolding, current
     // 重置状态
     setSuccess(true);
     setTimeout(() => {
-      setSuccess(false);
-      setFundCode('');
-      setHoldingAmount('0');
-      setHoldingProfit('0');
-      setSearchResult(null);
-      onClose();
+      handleClose();
     }, 1500);
   };
 
@@ -237,6 +230,8 @@ export default function AddHoldingModal({ isOpen, onClose, onAddHolding, current
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-zinc-800 dark:text-white"
                   />
                 </div>
+
+
 
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">

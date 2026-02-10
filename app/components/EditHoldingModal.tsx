@@ -6,7 +6,7 @@ interface EditHoldingModalProps {
   onClose: () => void;
   onEditHolding: (holding: {
     code: string;
-    name: string;
+    fundName: string;
     holdingAmount: number;
     holdingProfit: number;
     type: string;
@@ -15,7 +15,7 @@ interface EditHoldingModalProps {
   }) => void;
   holding: {
     code: string;
-    name: string;
+    fundName: string;
     totalValue: number;
     profit: number;
     type: string;
@@ -64,7 +64,7 @@ export default function EditHoldingModal({ isOpen, onClose, onEditHolding, holdi
     // 构建持仓信息
     const updatedHolding = {
       code: holding.code,
-      name: holding.name,
+      fundName: holding.fundName,
       holdingAmount: parseFloat(holdingAmount),
       holdingProfit: parseFloat(holdingProfit) || 0,
       type: holding.type,
@@ -121,7 +121,7 @@ export default function EditHoldingModal({ isOpen, onClose, onEditHolding, holdi
           <div>
             {/* 基金信息 */}
             <div className="mb-4 p-3 bg-zinc-50 dark:bg-zinc-800 rounded-md">
-              <h3 className="font-medium text-zinc-900 dark:text-white">{holding.name}</h3>
+              <h3 className="font-medium text-zinc-900 dark:text-white">{holding.fundName}</h3>
               <p className="text-sm text-zinc-600 dark:text-zinc-400">
                 代码：{holding.code} | 类型：{holding.type}
               </p>

@@ -27,8 +27,8 @@ interface FundTabProps {
   onAddHolding: (holding: {
     code: string;
     name: string;
-    shares: number;
-    costPrice: number;
+    holdingAmount: number;
+    holdingProfit: number;
     type: string;
     industryInfo: string;
     walletId: string;
@@ -36,8 +36,8 @@ interface FundTabProps {
   onBatchAddHolding: (holdings: {
     code: string;
     name: string;
-    shares: number;
-    costPrice: number;
+    holdingAmount: number;
+    holdingProfit: number;
     type: string;
     industryInfo: string;
     walletId: string;
@@ -49,7 +49,7 @@ interface FundTabProps {
   onSwitchWallet: (id: string) => void;
   onEditHolding: (holding: {
     code: string;
-    name: string;
+    fundName: string;
     holdingAmount: number;
     holdingProfit: number;
     type: string;
@@ -101,7 +101,7 @@ export default function FundTab({
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingHolding, setEditingHolding] = useState<{
     code: string;
-    name: string;
+    fundName: string;
     totalValue: number;
     profit: number;
     type: string;
@@ -256,31 +256,72 @@ export default function FundTab({
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">我的持仓</h3>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => setBatchAddModalOpen(true)}
-                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md flex items-center gap-1"
-                  >
-                    <Plus className="h-4 w-4" />
-                    批量添加
-                  </button>
-                  <button
-                    onClick={() => setAddModalOpen(true)}
-                    className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md flex items-center gap-1"
-                  >
-                    <Plus className="h-4 w-4" />
-                    添加持仓
-                  </button>
-                  {selectedHoldings.length > 0 && (
-                    <button
-                      onClick={() => onBatchDeleteHolding(selectedHoldings)}
-                      className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded-md flex items-center gap-1"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      批量删除
-                    </button>
+                  {currentWalletId !== 'summary' && (
+                    <>
+                      <button
+                        onClick={() => setBatchAddModalOpen(true)}
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md flex items-center gap-1"
+                      >
+                        <Plus className="h-4 w-4" />
+                        批量添加
+                      </button>
+                      <button
+                        onClick={() => setAddModalOpen(true)}
+                        className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md flex items-center gap-1"
+                      >
+                        <Plus className="h-4 w-4" />
+                        添加持仓
+                      </button>
+                      {selectedHoldings.length > 0 && (
+                        <button
+                          onClick={() => onBatchDeleteHolding(selectedHoldings)}
+                          className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded-md flex items-center gap-1"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          批量删除
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
+              
+              {/* 持仓汇总信息 */}
+              {currentWalletHoldings.length > 0 && (
+                <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 p-4 mb-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* 总持仓金额 */}
+                    <div className="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-3">
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-1">总持仓金额</p>
+                      <p className="text-lg font-semibold text-zinc-900 dark:text-white">
+                        {formatCurrency(currentWalletHoldings.reduce((sum, holding) => sum + holding.totalValue, 0))}
+                      </p>
+                    </div>
+                    
+                    {/* 累计盈亏金额 */}
+                    <div className="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-3">
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-1">累计盈亏金额</p>
+                      <p className={`text-lg font-semibold ${getChangeColorClass(currentWalletHoldings.reduce((sum, holding) => sum + holding.profit, 0) > 0)}`}>
+                        {currentWalletHoldings.reduce((sum, holding) => sum + holding.profit, 0) > 0 ? '+' : ''}
+                        {formatCurrency(currentWalletHoldings.reduce((sum, holding) => sum + holding.profit, 0))}
+                      </p>
+                    </div>
+                    
+                    {/* 累计盈亏比例 */}
+                    <div className="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-3">
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-1">累计盈亏比例</p>
+                      <p className={`text-lg font-semibold ${getChangeColorClass(currentWalletHoldings.reduce((sum, holding) => sum + holding.profit, 0) > 0)}`}>
+                        {(() => {
+                          const totalProfit = currentWalletHoldings.reduce((sum, holding) => sum + holding.profit, 0);
+                          const totalCost = currentWalletHoldings.reduce((sum, holding) => sum + (holding.totalValue - holding.profit), 0);
+                          const profitRate = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
+                          return formatPercentage(profitRate);
+                        })()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
               
               {/* 用户持仓列表 */}
               <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800">
@@ -339,7 +380,7 @@ export default function FundTab({
                                   )}
                                 </button>
                               </td>
-                              <td className="py-3 px-4 text-sm text-zinc-900 dark:text-white">{holding.name}</td>
+                              <td className="py-3 px-4 text-sm text-zinc-900 dark:text-white">{holding.fundName}</td>
                               <td className="py-3 px-4 text-sm text-zinc-600 dark:text-zinc-400">{holding.code}</td>
                               <td className="py-3 px-4 text-sm text-zinc-600 dark:text-zinc-400">{holding.type}</td>
                               <td className="py-3 px-4 text-sm text-zinc-600 dark:text-zinc-400">{holding.industryInfo || '---'}</td>
@@ -352,31 +393,35 @@ export default function FundTab({
                               </td>
                               <td className="py-3 px-4 text-sm">
                                 <div className="flex gap-2">
-                                  <button
-                                    onClick={() => {
-                                      setEditingHolding({
-                                        code: holding.code,
-                                        name: holding.name,
-                                        totalValue: holding.totalValue,
-                                        profit: holding.profit,
-                                        type: holding.type,
-                                        industryInfo: holding.industryInfo || '',
-                                        walletId: holding.walletId
-                                      });
-                                      setEditModalOpen(true);
-                                    }}
-                                    className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
-                                    title="编辑持仓"
-                                  >
-                                    <Edit2 className="h-4 w-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => onDeleteHolding(holding.code)}
-                                    className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
-                                    title="删除持仓"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </button>
+                                  {currentWalletId !== 'summary' && (
+                                    <>
+                                      <button
+                                        onClick={() => {
+                                          setEditingHolding({
+                                            code: holding.code,
+                                            fundName: holding.fundName,
+                                            totalValue: holding.totalValue,
+                                            profit: holding.profit,
+                                            type: holding.type,
+                                            industryInfo: holding.industryInfo || '',
+                                            walletId: holding.walletId
+                                          });
+                                          setEditModalOpen(true);
+                                        }}
+                                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                                        title="编辑持仓"
+                                      >
+                                        <Edit2 className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => onDeleteHolding(holding.code)}
+                                        className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                                        title="删除持仓"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </>
+                                  )}
                                   <Link href={`/funds/${holding.code}`} title="查看详情" className="text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-300 p-1">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />

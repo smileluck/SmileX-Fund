@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import Link from 'next/link';
 import { Search, Bell, Settings, ChevronDown, TrendingUp, BarChart2, Bookmark, Home, DollarSign, LineChart as LineChartIcon } from 'lucide-react';
-import { fundMockService, FundInfo, MarketIndex, MacroEconomicData, MacroEconomicCumulative, UserHolding, Wallet, formatCurrency, formatPercentage } from '@/lib/mockData';
+import { fundMockService, FundInfo, MarketIndex, MacroEconomicData, MacroEconomicCumulative, UserHolding, Wallet, PreciousMetal, PreciousMetalHistory, formatCurrency, formatPercentage } from '@/lib/mockData';
 
 // 懒加载组件
 const FundTab = lazy(() => import('./components/FundTab'));
@@ -13,14 +13,13 @@ const MarketTab = lazy(() => import('./components/MarketTab'));
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState('fund');
   const [funds, setFunds] = useState<FundInfo[]>([]);
-  const [filteredFunds, setFilteredFunds] = useState<FundInfo[]>([]);
   const [marketIndices, setMarketIndices] = useState<MarketIndex[]>([]);
-  const [preciousMetals, setPreciousMetals] = useState<any[]>([]);
-  const [fundHoldingsSummary, setFundHoldingsSummary] = useState<any[]>([]);
+  const [preciousMetals, setPreciousMetals] = useState<PreciousMetal[]>([]);
+  const [fundHoldingsSummary, setFundHoldingsSummary] = useState<{ industry: string; proportion: number; count: number }[]>([]);
   const [macroEconomicData, setMacroEconomicData] = useState<MacroEconomicData[]>([]);
   const [macroEconomicCumulative, setMacroEconomicCumulative] = useState<MacroEconomicCumulative[]>([]);
-  const [goldHistory, setGoldHistory] = useState<any[]>([]);
-  const [silverHistory, setSilverHistory] = useState<any[]>([]);
+  const [goldHistory, setGoldHistory] = useState<PreciousMetalHistory[]>([]);
+  const [silverHistory, setSilverHistory] = useState<PreciousMetalHistory[]>([]);
   const [sortBy, setSortBy] = useState<'valuation' | 'dailyChangeRate' | 'name'>('dailyChangeRate');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [searchQuery, setSearchQuery] = useState('');
@@ -108,44 +107,12 @@ export default function HomePage() {
     };
   }, []);
 
-  // 监听同一页面内的本地存储变化（因为 storage 事件不会在同一页面内触发）
-  useEffect(() => {
-    // 定期检查本地存储，确保设置同步
-    const intervalId = setInterval(() => {
-      try {
-        // 检查贵金属设置
-        const savedMetalItemsPerRow = localStorage.getItem('metalItemsPerRow');
-        if (savedMetalItemsPerRow) {
-          const parsedValue = parseInt(savedMetalItemsPerRow, 10);
-          if (!isNaN(parsedValue) && parsedValue >= 1 && parsedValue <= 4 && parsedValue !== itemsPerRow) {
-            setItemsPerRow(parsedValue);
-          }
-        }
-        
-        // 检查市场设置
-        const savedMarketItemsPerRow = localStorage.getItem('marketItemsPerRow');
-        if (savedMarketItemsPerRow) {
-          const parsedValue = parseInt(savedMarketItemsPerRow, 10);
-          if (!isNaN(parsedValue) && parsedValue >= 1 && parsedValue <= 4 && parsedValue !== marketItemsPerRow) {
-            setMarketItemsPerRow(parsedValue);
-          }
-        }
-        
-        // 检查涨跌颜色配置
-        const savedColorScheme = localStorage.getItem('colorScheme');
-        if (savedColorScheme && (savedColorScheme === 'red-up' || savedColorScheme === 'red-down') && savedColorScheme !== colorScheme) {
-          setColorScheme(savedColorScheme as 'red-up' | 'red-down');
-        }
-      } catch (error) {
-        console.error('Error checking localStorage for settings:', error);
-      }
-    }, 1000); // 每1秒检查一次
+  // 注意：移除了定期检查本地存储的interval，因为：
+  // 1. 它会导致频繁的组件重渲染
+  // 2. 本地存储的变化已经通过storage事件监听器处理
+  // 3. 对于同一页面内的本地存储变化，应该通过直接调用setState来处理，而不是轮询
 
-    // 清理函数
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [itemsPerRow, marketItemsPerRow, colorScheme]);
+  // 如需在同一页面内同步设置变化，请在修改localStorage后直接更新对应的状态
 
   // 初始化数据并启动实时更新
   useEffect(() => {
@@ -231,10 +198,7 @@ export default function HomePage() {
     }
   }, [funds, searchQuery, fundType, riskLevel, sortBy, sortOrder]);
 
-  // 当过滤和排序结果变化时更新状态
-  useEffect(() => {
-    setFilteredFunds(filteredAndSortedFunds);
-  }, [filteredAndSortedFunds]);
+  // 移除了更新filteredFunds状态的useEffect，直接使用filteredAndSortedFunds
 
   // 处理排序变更 - 使用 useCallback 缓存
   const handleSortChange = useCallback((newSortBy: 'valuation' | 'dailyChangeRate' | 'name') => {
@@ -259,9 +223,8 @@ export default function HomePage() {
   const calculateHoldingData = useCallback((holding: {
     code: string;
     name: string;
-    shares?: number;
-    costPrice?: number;
     holdingAmount?: number;
+    holdingProfit?: number;
     type: string;
     industryInfo?: string;
     walletId: string;
@@ -269,47 +232,24 @@ export default function HomePage() {
     try {
       // 查找对应的基金信息以获取当前价格
       const fund = funds.find(f => f.code === holding.code);
-      const currentPrice = fund?.valuation?.valuation || 1;
+      // 确保当前价格有效，找不到基金时使用0
+      const currentPrice = fund?.valuation?.valuation || 0;
       
-      // 确保当前价格有效
-      const validCurrentPrice = typeof currentPrice === 'number' && !isNaN(currentPrice) && currentPrice > 0 ? currentPrice : 1;
+      // 确保持仓金额有效
+      const totalValue = holding.holdingAmount && holding.holdingAmount > 0 ? holding.holdingAmount : 0;
+      // 使用传入的盈亏值
+      const profit = holding.holdingProfit || 0;
       
-      let totalValue = 0;
-      let totalCost = 0;
-      let shares = 0;
-      let costPrice = 0;
-      
-      // 如果提供了持仓金额，使用它作为总价值
-      if (holding.holdingAmount && holding.holdingAmount > 0) {
-        totalValue = holding.holdingAmount;
-        // 根据当前价格计算份额
-        shares = totalValue / validCurrentPrice;
-        // 假设成本价等于当前价格，实际应用中可能需要从其他地方获取
-        costPrice = validCurrentPrice;
-        totalCost = shares * costPrice;
-      } 
-      // 否则使用传统的份额和成本价计算
-      else if (holding.shares && holding.shares > 0 && holding.costPrice && holding.costPrice > 0) {
-        shares = holding.shares;
-        costPrice = holding.costPrice;
-        totalValue = shares * validCurrentPrice;
-        totalCost = shares * costPrice;
-      } else {
-        throw new Error('持仓金额或持仓份额和成本价必须大于0');
-      }
-      
-      // 计算盈亏
-      const profit = totalValue - totalCost;
-      
-      // 计算盈亏比例
-      const profitRate = totalCost > 0 ? (profit / totalCost) * 100 : 0;
+      // 计算成本和盈亏比例
+      const cost = totalValue - profit;
+      // 确保成本为正数，避免除以零或负数
+      const validCost = cost > 0 ? cost : 0;
+      const profitRate = validCost > 0 ? (profit / validCost) * 100 : 0;
       
       return {
         code: holding.code,
-        name: holding.name || '未知基金',
-        shares,
-        costPrice,
-        currentPrice: validCurrentPrice,
+        fundName: holding.name || '未知基金',
+        currentPrice,
         totalValue,
         profit,
         profitRate,
@@ -322,12 +262,10 @@ export default function HomePage() {
       // 返回默认值，确保函数不会抛出错误
       return {
         code: holding.code,
-        name: holding.name || '未知基金',
-        shares: holding.shares || 0,
-        costPrice: holding.costPrice || 0,
-        currentPrice: holding.costPrice || 0,
+        fundName: holding.name || '未知基金',
+        currentPrice: 0,
         totalValue: holding.holdingAmount || 0,
-        profit: 0,
+        profit: holding.holdingProfit || 0,
         profitRate: 0,
         type: holding.type || '未知类型',
         industryInfo: holding.industryInfo,
@@ -340,39 +278,63 @@ export default function HomePage() {
   const handleAddHolding = useCallback((holding: {
     code: string;
     name: string;
-    shares?: number;
-    costPrice?: number;
-    holdingAmount?: number;
+    holdingAmount: number;
+    holdingProfit: number;
     type: string;
-    industryInfo?: string;
+    industryInfo: string;
     walletId: string;
   }) => {
-    // 检查是否已存在相同代码和钱包的持仓
-    const existingIndex = userHoldings.findIndex(h => h.code === holding.code && h.walletId === holding.walletId);
-    
-    if (existingIndex >= 0) {
-      // 如果已存在，更新持仓
-      const updatedHoldings = [...userHoldings];
-      const existingHolding = updatedHoldings[existingIndex];
+    try {
+      // 验证输入数据
+      if (!holding.code || !holding.code.trim()) {
+        throw new Error('基金代码不能为空');
+      }
       
-      // 计算新的总价值（持仓金额）
-      const newTotalValue = (existingHolding.totalValue || 0) + (holding.holdingAmount || (holding.shares || 0) * (holding.costPrice || 0));
+      if (!holding.name || !holding.name.trim()) {
+        throw new Error('基金名称不能为空');
+      }
       
-      // 更新持仓数据
-      updatedHoldings[existingIndex] = calculateHoldingData({
-        code: holding.code,
-        name: holding.name,
-        holdingAmount: newTotalValue,
-        type: holding.type,
-        industryInfo: holding.industryInfo || existingHolding.industryInfo,
-        walletId: holding.walletId
-      });
+      if (typeof holding.holdingAmount !== 'number' || holding.holdingAmount <= 0) {
+        throw new Error('持仓金额必须大于0');
+      }
       
-      setUserHoldings(updatedHoldings);
-    } else {
-      // 如果不存在，添加新持仓
-      const newHolding = calculateHoldingData(holding);
-      setUserHoldings([...userHoldings, newHolding]);
+      if (!holding.walletId) {
+        throw new Error('请选择钱包');
+      }
+      
+      // 检查是否已存在相同代码和钱包的持仓
+      const existingIndex = userHoldings.findIndex(h => h.code === holding.code && h.walletId === holding.walletId);
+      
+      if (existingIndex >= 0) {
+        // 如果已存在，更新持仓
+        const updatedHoldings = [...userHoldings];
+        const existingHolding = updatedHoldings[existingIndex];
+        
+        // 计算新的总价值（持仓金额）和总盈亏
+        const newTotalValue = (existingHolding.totalValue || 0) + holding.holdingAmount;
+        const newProfit = (existingHolding.profit || 0) + holding.holdingProfit;
+        
+        // 更新持仓数据
+        updatedHoldings[existingIndex] = calculateHoldingData({
+          code: holding.code,
+          name: holding.name,
+          holdingAmount: newTotalValue,
+          holdingProfit: newProfit,
+          type: holding.type,
+          industryInfo: holding.industryInfo || existingHolding.industryInfo,
+          walletId: holding.walletId
+        });
+        
+        setUserHoldings(updatedHoldings);
+      } else {
+        // 如果不存在，添加新持仓
+        const newHolding = calculateHoldingData(holding);
+        setUserHoldings([...userHoldings, newHolding]);
+      }
+    } catch (error) {
+      console.error('添加持仓失败:', error);
+      // 可以在这里添加用户提示，比如使用toast
+      alert((error as Error).message);
     }
   }, [userHoldings, calculateHoldingData]);
 
@@ -380,53 +342,102 @@ export default function HomePage() {
   const handleBatchAddHolding = useCallback((holdings: {
     code: string;
     name: string;
-    shares?: number;
-    costPrice?: number;
-    holdingAmount?: number;
+    holdingAmount: number;
+    holdingProfit: number;
     type: string;
-    industryInfo?: string;
+    industryInfo: string;
     walletId: string;
   }[]) => {
-    const updatedHoldings = [...userHoldings];
-    
-    for (const holding of holdings) {
-      const existingIndex = updatedHoldings.findIndex(h => h.code === holding.code && h.walletId === holding.walletId);
-      
-      if (existingIndex >= 0) {
-        // 如果已存在，更新持仓
-        const existingHolding = updatedHoldings[existingIndex];
-        
-        // 计算新的总价值（持仓金额）
-        const newTotalValue = (existingHolding.totalValue || 0) + (holding.holdingAmount || (holding.shares || 0) * (holding.costPrice || 0));
-        
-        // 更新持仓数据，使用新的总价值
-        updatedHoldings[existingIndex] = calculateHoldingData({
-          code: holding.code,
-          name: holding.name,
-          holdingAmount: newTotalValue,
-          type: holding.type,
-          industryInfo: holding.industryInfo || existingHolding.industryInfo,
-          walletId: holding.walletId
-        });
-      } else {
-        // 如果不存在，添加新持仓
-        const newHolding = calculateHoldingData(holding);
-        updatedHoldings.push(newHolding);
+    try {
+      // 验证持仓数组
+      if (!Array.isArray(holdings) || holdings.length === 0) {
+        throw new Error('请选择要添加的持仓');
       }
+      
+      // 验证每个持仓数据
+      for (const holding of holdings) {
+        if (!holding.code || !holding.code.trim()) {
+          throw new Error('基金代码不能为空');
+        }
+        
+        if (!holding.name || !holding.name.trim()) {
+          throw new Error('基金名称不能为空');
+        }
+        
+        if (typeof holding.holdingAmount !== 'number' || holding.holdingAmount <= 0) {
+          throw new Error('持仓金额必须大于0');
+        }
+        
+        if (!holding.walletId) {
+          throw new Error('请选择钱包');
+        }
+      }
+      
+      const updatedHoldings = [...userHoldings];
+      
+      for (const holding of holdings) {
+        const existingIndex = updatedHoldings.findIndex(h => h.code === holding.code && h.walletId === holding.walletId);
+        
+        if (existingIndex >= 0) {
+          // 如果已存在，更新持仓
+          const existingHolding = updatedHoldings[existingIndex];
+
+          // 计算新的总价值（持仓金额）和总盈亏
+          const newTotalValue = (existingHolding.totalValue || 0) + holding.holdingAmount;
+          const newProfit = (existingHolding.profit || 0) + holding.holdingProfit;
+
+          // 更新持仓数据，使用新的总价值和总盈亏
+          updatedHoldings[existingIndex] = calculateHoldingData({
+            code: holding.code,
+            name: holding.name,
+            holdingAmount: newTotalValue,
+            holdingProfit: newProfit,
+            type: holding.type,
+            industryInfo: holding.industryInfo || existingHolding.industryInfo,
+            walletId: holding.walletId
+          });
+        } else {
+          // 如果不存在，添加新持仓
+          const newHolding = calculateHoldingData(holding);
+          updatedHoldings.push(newHolding);
+        }
+      }
+      
+      setUserHoldings(updatedHoldings);
+    } catch (error) {
+      console.error('批量添加持仓失败:', error);
+      // 可以在这里添加用户提示，比如使用toast
+      alert((error as Error).message);
     }
-    
-    setUserHoldings(updatedHoldings);
   }, [userHoldings, calculateHoldingData]);
 
   // 添加钱包
   const handleAddWallet = useCallback((name: string) => {
-    const newWallet: Wallet = {
-      id: `wallet-${Date.now()}`,
-      name,
-      createdAt: new Date().toISOString()
-    };
-    setWallets([...wallets, newWallet]);
-    setCurrentWalletId(newWallet.id);
+    try {
+      // 验证钱包名称
+      const trimmedName = name.trim();
+      if (!trimmedName) {
+        throw new Error('钱包名称不能为空');
+      }
+      
+      // 检查钱包名称是否已存在
+      const isNameExists = wallets.some(wallet => wallet.name === trimmedName);
+      if (isNameExists) {
+        throw new Error('钱包名称已存在');
+      }
+      
+      const newWallet: Wallet = {
+        id: `wallet-${Date.now()}`,
+        name: trimmedName,
+        createdAt: new Date().toISOString()
+      };
+      setWallets([...wallets, newWallet]);
+      setCurrentWalletId(newWallet.id);
+    } catch (error) {
+      console.error('添加钱包失败:', error);
+      // 可以在这里添加用户提示，比如使用toast
+      alert((error as Error).message);
+    }
   }, [wallets]);
 
   // 删除钱包
@@ -449,17 +460,47 @@ export default function HomePage() {
 
   // 切换钱包
   const handleSwitchWallet = useCallback((id: string) => {
-    setCurrentWalletId(id);
+    try {
+      if (!id) {
+        throw new Error('钱包ID不能为空');
+      }
+      
+      setCurrentWalletId(id);
+    } catch (error) {
+      console.error('切换钱包失败:', error);
+      // 可以在这里添加用户提示，比如使用toast
+      alert((error as Error).message);
+    }
   }, []);
 
   // 删除持仓
   const handleDeleteHolding = useCallback((code: string) => {
-    setUserHoldings(userHoldings.filter(holding => !(holding.code === code && holding.walletId === currentWalletId)));
+    try {
+      if (!code || !code.trim()) {
+        throw new Error('基金代码不能为空');
+      }
+      
+      setUserHoldings(userHoldings.filter(holding => !(holding.code === code && holding.walletId === currentWalletId)));
+    } catch (error) {
+      console.error('删除持仓失败:', error);
+      // 可以在这里添加用户提示，比如使用toast
+      alert((error as Error).message);
+    }
   }, [userHoldings, currentWalletId]);
 
   // 批量删除持仓
   const handleBatchDeleteHolding = useCallback((codes: string[]) => {
-    setUserHoldings(userHoldings.filter(holding => !(codes.includes(holding.code) && holding.walletId === currentWalletId)));
+    try {
+      if (!Array.isArray(codes) || codes.length === 0) {
+        throw new Error('请选择要删除的持仓');
+      }
+      
+      setUserHoldings(userHoldings.filter(holding => !(codes.includes(holding.code) && holding.walletId === currentWalletId)));
+    } catch (error) {
+      console.error('批量删除持仓失败:', error);
+      // 可以在这里添加用户提示，比如使用toast
+      alert((error as Error).message);
+    }
   }, [userHoldings, currentWalletId]);
 
   // 编辑持仓
@@ -472,19 +513,55 @@ export default function HomePage() {
     industryInfo: string;
     walletId: string;
   }) => {
-    setUserHoldings(userHoldings.map(h => {
-      if (h.code === holding.code && h.walletId === holding.walletId) {
-        // 更新持仓数据
-        return {
-          ...h,
-          totalValue: holding.holdingAmount,
-          profit: holding.holdingProfit,
-          profitRate: holding.holdingAmount > 0 ? (holding.holdingProfit / (holding.holdingAmount - holding.holdingProfit)) * 100 : 0
-        };
+    try {
+      // 验证输入数据
+      if (!holding.code || !holding.code.trim()) {
+        throw new Error('基金代码不能为空');
       }
-      return h;
-    }));
-  }, [userHoldings]);
+      
+      if (!holding.name || !holding.name.trim()) {
+        throw new Error('基金名称不能为空');
+      }
+      
+      if (typeof holding.holdingAmount !== 'number' || holding.holdingAmount <= 0) {
+        throw new Error('持仓金额必须大于0');
+      }
+      
+      if (!holding.walletId) {
+        throw new Error('请选择钱包');
+      }
+      
+      setUserHoldings(userHoldings.map(h => {
+        if (h.code === holding.code && h.walletId === holding.walletId) {
+          // 计算成本和盈亏比例
+          const cost = holding.holdingAmount - holding.holdingProfit;
+          const validCost = cost > 0 ? cost : 0;
+          const profitRate = validCost > 0 ? (holding.holdingProfit / validCost) * 100 : 0;
+          
+          // 查找对应的基金信息以获取当前价格
+          const fund = funds.find(f => f.code === holding.code);
+          const currentPrice = fund?.valuation?.valuation || 0;
+          
+          // 更新持仓数据
+          return {
+            ...h,
+            fundName: holding.name,
+            totalValue: holding.holdingAmount,
+            profit: holding.holdingProfit,
+            profitRate,
+            currentPrice,
+            type: holding.type,
+            industryInfo: holding.industryInfo
+          };
+        }
+        return h;
+      }));
+    } catch (error) {
+      console.error('编辑持仓失败:', error);
+      // 可以在这里添加用户提示，比如使用toast
+      alert((error as Error).message);
+    }
+  }, [userHoldings, funds]);
 
   return (
     <div className="flex flex-col min-h-screen bg-zinc-50 dark:bg-black">
@@ -550,7 +627,7 @@ export default function HomePage() {
               marketIndices={marketIndices}
               fundHoldingsSummary={fundHoldingsSummary}
               funds={funds}
-              filteredFunds={filteredFunds}
+              filteredFunds={filteredAndSortedFunds}
               userHoldings={userHoldings}
               wallets={wallets}
               currentWalletId={currentWalletId}
