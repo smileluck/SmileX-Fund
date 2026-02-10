@@ -14,14 +14,16 @@ interface AddHoldingModalProps {
     holdingProfit: number;
     type: string;
     industryInfo: string;
+    walletId: string;
   }) => void;
+  currentWalletId: string;
 }
 
 /**
  * 添加持仓模态框组件
  * 用于用户添加新的基金持仓
  */
-export default function AddHoldingModal({ isOpen, onClose, onAddHolding }: AddHoldingModalProps) {
+export default function AddHoldingModal({ isOpen, onClose, onAddHolding, currentWalletId }: AddHoldingModalProps) {
   // 状态管理
   const [fundCode, setFundCode] = useState('');
   const [holdingAmount, setHoldingAmount] = useState('0');
@@ -94,7 +96,8 @@ export default function AddHoldingModal({ isOpen, onClose, onAddHolding }: AddHo
       holdingAmount: parseFloat(holdingAmount),
       holdingProfit: parseFloat(holdingProfit) || 0,
       type: searchResult.FundBaseInfo.FTYPE || '未知类型',
-      industryInfo: industryInfo
+      industryInfo: industryInfo,
+      walletId: currentWalletId
     };
 
     // 调用添加持仓回调

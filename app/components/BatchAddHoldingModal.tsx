@@ -13,6 +13,7 @@ interface BatchAddHoldingModalProps {
     costPrice: number;
     type: string;
     industryInfo: string;
+    walletId: string;
   }[]) => void;
   userHoldings?: {
     code: string;
@@ -25,13 +26,14 @@ interface BatchAddHoldingModalProps {
     profitRate: number;
     type: string;
   }[];
+  currentWalletId: string;
 }
 
 /**
  * 批量添加持仓模态框组件
  * 用于用户批量添加多个基金持仓
  */
-export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHolding, userHoldings = [] }: BatchAddHoldingModalProps) {
+export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHolding, userHoldings = [], currentWalletId }: BatchAddHoldingModalProps) {
   // 状态管理
   const [items, setItems] = useState<BatchAddItem[]>([{ code: '', shares: 0, costPrice: 0, fundName: '', holdingAmount: 0, holdingProfit: 0, error: '', fundType: '', fundCompany: '', fundManager: '', latestNav: 0, navDate: '', industryInfo: '' }]);
   const [loading, setLoading] = useState(false);
@@ -224,7 +226,8 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
             holdingAmount: item?.holdingAmount || 0,
             holdingProfit: item?.holdingProfit || 0,
             type: item?.fundType || '未知类型',
-            industryInfo: item?.industryInfo || '未知'
+            industryInfo: item?.industryInfo || '未知',
+            walletId: currentWalletId
           };
         });
 

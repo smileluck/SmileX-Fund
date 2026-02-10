@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import Link from 'next/link';
 import { Search, Bell, Settings, ChevronDown, TrendingUp, BarChart2, Bookmark, Home, DollarSign, LineChart as LineChartIcon } from 'lucide-react';
-import { fundMockService, FundInfo, MarketIndex, MacroEconomicData, MacroEconomicCumulative, UserHolding, formatCurrency, formatPercentage } from '@/lib/mockData';
+import { fundMockService, FundInfo, MarketIndex, MacroEconomicData, MacroEconomicCumulative, UserHolding, Wallet, formatCurrency, formatPercentage } from '@/lib/mockData';
 
 // 懒加载组件
 const FundTab = lazy(() => import('./components/FundTab'));
@@ -28,6 +28,12 @@ export default function HomePage() {
   const [riskLevel, setRiskLevel] = useState('');
   // 持仓管理状态
   const [userHoldings, setUserHoldings] = useState<UserHolding[]>([]);
+  // 钱包管理状态
+  const [wallets, setWallets] = useState<Wallet[]>([
+    { id: 'summary', name: '汇总', createdAt: new Date().toISOString() },
+    { id: 'default', name: '默认钱包', createdAt: new Date().toISOString() }
+  ]);
+  const [currentWalletId, setCurrentWalletId] = useState('default');
   // 设置相关状态
   const [itemsPerRow, setItemsPerRow] = useState(2); // 贵金属默认值为 2
   const [marketItemsPerRow, setMarketItemsPerRow] = useState(2); // 市场默认值为 2
@@ -258,6 +264,7 @@ export default function HomePage() {
     holdingAmount?: number;
     type: string;
     industryInfo?: string;
+    walletId: string;
   }): UserHolding => {
     try {
       // 查找对应的基金信息以获取当前价格
@@ -307,7 +314,8 @@ export default function HomePage() {
         profit,
         profitRate,
         type: holding.type || '未知类型',
-        industryInfo: holding.industryInfo
+        industryInfo: holding.industryInfo,
+        walletId: holding.walletId
       };
     } catch (error) {
       console.error('计算持仓数据失败:', error);
@@ -322,7 +330,8 @@ export default function HomePage() {
         profit: 0,
         profitRate: 0,
         type: holding.type || '未知类型',
-        industryInfo: holding.industryInfo
+        industryInfo: holding.industryInfo,
+        walletId: holding.walletId
       };
     }
   }, [funds]);
@@ -336,9 +345,10 @@ export default function HomePage() {
     holdingAmount?: number;
     type: string;
     industryInfo?: string;
+    walletId: string;
   }) => {
-    // 检查是否已存在相同代码的持仓
-    const existingIndex = userHoldings.findIndex(h => h.code === holding.code);
+    // 检查是否已存在相同代码和钱包的持仓
+    const existingIndex = userHoldings.findIndex(h => h.code === holding.code && h.walletId === holding.walletId);
     
     if (existingIndex >= 0) {
       // 如果已存在，更新持仓
@@ -354,7 +364,8 @@ export default function HomePage() {
         name: holding.name,
         holdingAmount: newTotalValue,
         type: holding.type,
-        industryInfo: holding.industryInfo || existingHolding.industryInfo
+        industryInfo: holding.industryInfo || existingHolding.industryInfo,
+        walletId: holding.walletId
       });
       
       setUserHoldings(updatedHoldings);
@@ -374,11 +385,12 @@ export default function HomePage() {
     holdingAmount?: number;
     type: string;
     industryInfo?: string;
+    walletId: string;
   }[]) => {
     const updatedHoldings = [...userHoldings];
     
     for (const holding of holdings) {
-      const existingIndex = updatedHoldings.findIndex(h => h.code === holding.code);
+      const existingIndex = updatedHoldings.findIndex(h => h.code === holding.code && h.walletId === holding.walletId);
       
       if (existingIndex >= 0) {
         // 如果已存在，更新持仓
@@ -393,7 +405,8 @@ export default function HomePage() {
           name: holding.name,
           holdingAmount: newTotalValue,
           type: holding.type,
-          industryInfo: holding.industryInfo || existingHolding.industryInfo
+          industryInfo: holding.industryInfo || existingHolding.industryInfo,
+          walletId: holding.walletId
         });
       } else {
         // 如果不存在，添加新持仓
@@ -405,14 +418,72 @@ export default function HomePage() {
     setUserHoldings(updatedHoldings);
   }, [userHoldings, calculateHoldingData]);
 
+  // 添加钱包
+  const handleAddWallet = useCallback((name: string) => {
+    const newWallet: Wallet = {
+      id: `wallet-${Date.now()}`,
+      name,
+      createdAt: new Date().toISOString()
+    };
+    setWallets([...wallets, newWallet]);
+    setCurrentWalletId(newWallet.id);
+  }, [wallets]);
+
+  // 删除钱包
+  const handleDeleteWallet = useCallback((id: string) => {
+    // 不能删除默认钱包和汇总钱包
+    if (id === 'default' || id === 'summary') return;
+    
+    // 从钱包列表中删除
+    const updatedWallets = wallets.filter(wallet => wallet.id !== id);
+    setWallets(updatedWallets);
+    
+    // 如果删除的是当前钱包，切换到默认钱包
+    if (id === currentWalletId) {
+      setCurrentWalletId('default');
+    }
+    
+    // 删除该钱包下的所有持仓
+    setUserHoldings(userHoldings.filter(holding => holding.walletId !== id));
+  }, [wallets, currentWalletId, userHoldings]);
+
+  // 切换钱包
+  const handleSwitchWallet = useCallback((id: string) => {
+    setCurrentWalletId(id);
+  }, []);
+
   // 删除持仓
   const handleDeleteHolding = useCallback((code: string) => {
-    setUserHoldings(userHoldings.filter(holding => holding.code !== code));
-  }, [userHoldings]);
+    setUserHoldings(userHoldings.filter(holding => !(holding.code === code && holding.walletId === currentWalletId)));
+  }, [userHoldings, currentWalletId]);
 
   // 批量删除持仓
   const handleBatchDeleteHolding = useCallback((codes: string[]) => {
-    setUserHoldings(userHoldings.filter(holding => !codes.includes(holding.code)));
+    setUserHoldings(userHoldings.filter(holding => !(codes.includes(holding.code) && holding.walletId === currentWalletId)));
+  }, [userHoldings, currentWalletId]);
+
+  // 编辑持仓
+  const handleEditHolding = useCallback((holding: {
+    code: string;
+    name: string;
+    holdingAmount: number;
+    holdingProfit: number;
+    type: string;
+    industryInfo: string;
+    walletId: string;
+  }) => {
+    setUserHoldings(userHoldings.map(h => {
+      if (h.code === holding.code && h.walletId === holding.walletId) {
+        // 更新持仓数据
+        return {
+          ...h,
+          totalValue: holding.holdingAmount,
+          profit: holding.holdingProfit,
+          profitRate: holding.holdingAmount > 0 ? (holding.holdingProfit / (holding.holdingAmount - holding.holdingProfit)) * 100 : 0
+        };
+      }
+      return h;
+    }));
   }, [userHoldings]);
 
   return (
@@ -481,6 +552,8 @@ export default function HomePage() {
               funds={funds}
               filteredFunds={filteredFunds}
               userHoldings={userHoldings}
+              wallets={wallets}
+              currentWalletId={currentWalletId}
               sortBy={sortBy}
               sortOrder={sortOrder}
               searchQuery={searchQuery}
@@ -495,6 +568,10 @@ export default function HomePage() {
               onBatchAddHolding={handleBatchAddHolding}
               onDeleteHolding={handleDeleteHolding}
               onBatchDeleteHolding={handleBatchDeleteHolding}
+              onAddWallet={handleAddWallet}
+              onDeleteWallet={handleDeleteWallet}
+              onSwitchWallet={handleSwitchWallet}
+              onEditHolding={handleEditHolding}
               colorScheme={colorScheme}
             />
           )}

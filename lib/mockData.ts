@@ -88,6 +88,13 @@ export interface PreciousMetalHistory {
   value: number;         // 价格
 }
 
+// 钱包接口
+export interface Wallet {
+  id: string;            // 钱包ID
+  name: string;          // 钱包名称
+  createdAt: string;     // 创建时间
+}
+
 // 用户持仓接口
 export interface UserHolding {
   code: string;          // 基金代码
@@ -100,6 +107,7 @@ export interface UserHolding {
   profitRate: number;    // 盈亏比例
   type: string;          // 基金类型
   industryInfo?: string; // 行业信息
+  walletId: string;      // 所属钱包ID
 }
 
 // 模拟基金基本数据
