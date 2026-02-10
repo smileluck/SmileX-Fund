@@ -21,8 +21,6 @@ interface BatchAddHoldingModalProps {
     holdingAmount: number;
     holdingProfit: number;
     currentPrice: number;
-    totalValue: number;
-    profit: number;
     profitRate: number;
     type: string;
   }[];

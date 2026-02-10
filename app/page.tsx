@@ -236,22 +236,22 @@ export default function HomePage() {
       const currentPrice = fund?.valuation?.valuation || 0;
       
       // 确保持仓金额有效
-      const totalValue = holding.holdingAmount && holding.holdingAmount > 0 ? holding.holdingAmount : 0;
+      const holdingAmount = holding.holdingAmount && holding.holdingAmount > 0 ? holding.holdingAmount : 0;
       // 使用传入的盈亏值
-      const profit = holding.holdingProfit || 0;
+      const holdingProfit = holding.holdingProfit || 0;
       
       // 计算成本和盈亏比例
-      const cost = totalValue - profit;
+      const cost = holdingAmount - holdingProfit;
       // 确保成本为正数，避免除以零或负数
       const validCost = cost > 0 ? cost : 0;
-      const profitRate = validCost > 0 ? (profit / validCost) * 100 : 0;
+      const profitRate = validCost > 0 ? (holdingProfit / validCost) * 100 : 0;
       
       return {
         code: holding.code,
         fundName: holding.name || '未知基金',
+        holdingAmount,
+        holdingProfit,
         currentPrice,
-        totalValue,
-        profit,
         profitRate,
         type: holding.type || '未知类型',
         industryInfo: holding.industryInfo,
@@ -263,9 +263,9 @@ export default function HomePage() {
       return {
         code: holding.code,
         fundName: holding.name || '未知基金',
+        holdingAmount: holding.holdingAmount || 0,
+        holdingProfit: holding.holdingProfit || 0,
         currentPrice: 0,
-        totalValue: holding.holdingAmount || 0,
-        profit: holding.holdingProfit || 0,
         profitRate: 0,
         type: holding.type || '未知类型',
         industryInfo: holding.industryInfo,
@@ -310,16 +310,16 @@ export default function HomePage() {
         const updatedHoldings = [...userHoldings];
         const existingHolding = updatedHoldings[existingIndex];
         
-        // 计算新的总价值（持仓金额）和总盈亏
-        const newTotalValue = (existingHolding.totalValue || 0) + holding.holdingAmount;
-        const newProfit = (existingHolding.profit || 0) + holding.holdingProfit;
+        // 计算新的持仓金额和总盈亏
+        const newHoldingAmount = (existingHolding.holdingAmount || 0) + holding.holdingAmount;
+        const newHoldingProfit = (existingHolding.holdingProfit || 0) + holding.holdingProfit;
         
         // 更新持仓数据
         updatedHoldings[existingIndex] = calculateHoldingData({
           code: holding.code,
           name: holding.name,
-          holdingAmount: newTotalValue,
-          holdingProfit: newProfit,
+          holdingAmount: newHoldingAmount,
+          holdingProfit: newHoldingProfit,
           type: holding.type,
           industryInfo: holding.industryInfo || existingHolding.industryInfo,
           walletId: holding.walletId
@@ -382,16 +382,16 @@ export default function HomePage() {
           // 如果已存在，更新持仓
           const existingHolding = updatedHoldings[existingIndex];
 
-          // 计算新的总价值（持仓金额）和总盈亏
-          const newTotalValue = (existingHolding.totalValue || 0) + holding.holdingAmount;
-          const newProfit = (existingHolding.profit || 0) + holding.holdingProfit;
+          // 计算新的持仓金额和总盈亏
+          const newHoldingAmount = (existingHolding.holdingAmount || 0) + holding.holdingAmount;
+          const newHoldingProfit = (existingHolding.holdingProfit || 0) + holding.holdingProfit;
 
-          // 更新持仓数据，使用新的总价值和总盈亏
+          // 更新持仓数据，使用新的持仓金额和总盈亏
           updatedHoldings[existingIndex] = calculateHoldingData({
             code: holding.code,
             name: holding.name,
-            holdingAmount: newTotalValue,
-            holdingProfit: newProfit,
+            holdingAmount: newHoldingAmount,
+            holdingProfit: newHoldingProfit,
             type: holding.type,
             industryInfo: holding.industryInfo || existingHolding.industryInfo,
             walletId: holding.walletId
@@ -506,7 +506,7 @@ export default function HomePage() {
   // 编辑持仓
   const handleEditHolding = useCallback((holding: {
     code: string;
-    name: string;
+    fundName: string;
     holdingAmount: number;
     holdingProfit: number;
     type: string;
@@ -519,7 +519,7 @@ export default function HomePage() {
         throw new Error('基金代码不能为空');
       }
       
-      if (!holding.name || !holding.name.trim()) {
+      if (!holding.fundName || !holding.fundName.trim()) {
         throw new Error('基金名称不能为空');
       }
       
@@ -545,9 +545,9 @@ export default function HomePage() {
           // 更新持仓数据
           return {
             ...h,
-            fundName: holding.name,
-            totalValue: holding.holdingAmount,
-            profit: holding.holdingProfit,
+            fundName: holding.fundName,
+            holdingAmount: holding.holdingAmount,
+            holdingProfit: holding.holdingProfit,
             profitRate,
             currentPrice,
             type: holding.type,

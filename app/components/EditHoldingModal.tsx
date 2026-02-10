@@ -16,8 +16,8 @@ interface EditHoldingModalProps {
   holding: {
     code: string;
     fundName: string;
-    totalValue: number;
-    profit: number;
+    holdingAmount: number;
+    holdingProfit: number;
     type: string;
     industryInfo: string;
     walletId: string;
@@ -38,8 +38,8 @@ export default function EditHoldingModal({ isOpen, onClose, onEditHolding, holdi
   // 当持仓数据变化时，更新表单数据
   useEffect(() => {
     if (holding) {
-      setHoldingAmount(holding.totalValue.toString());
-      setHoldingProfit(holding.profit.toString());
+      setHoldingAmount(holding.holdingAmount.toString());
+      setHoldingProfit(holding.holdingProfit.toString());
     }
   }, [holding]);
 

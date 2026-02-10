@@ -102,8 +102,6 @@ export interface UserHolding {
   holdingAmount: number; // 持仓金额
   holdingProfit: number; // 持仓盈亏
   currentPrice: number;  // 当前价格
-  totalValue: number;    // 总价值
-  profit: number;        // 盈亏
   profitRate: number;    // 盈亏比例
   type: string;          // 基金类型
   industryInfo?: string; // 行业信息

@@ -102,8 +102,8 @@ export default function FundTab({
   const [editingHolding, setEditingHolding] = useState<{
     code: string;
     fundName: string;
-    totalValue: number;
-    profit: number;
+    holdingAmount: number;
+    holdingProfit: number;
     type: string;
     industryInfo: string;
     walletId: string;
@@ -154,21 +154,21 @@ export default function FundTab({
           if (!acc[holding.code]) {
             acc[holding.code] = {
               ...holding,
-              totalValue: holding.totalValue,
-              profit: holding.profit,
+              holdingAmount: holding.holdingAmount,
+              holdingProfit: holding.holdingProfit,
               profitRate: 0 // 稍后计算
             };
           } else {
             // 合并持仓金额和盈亏
-            acc[holding.code].totalValue += holding.totalValue;
-            acc[holding.code].profit += holding.profit;
+            acc[holding.code].holdingAmount += holding.holdingAmount;
+            acc[holding.code].holdingProfit += holding.holdingProfit;
           }
           return acc;
         }, {} as Record<string, UserHolding>)
       ).map(holding => ({
         ...holding,
         // 重新计算盈亏比例
-        profitRate: holding.totalValue > 0 ? (holding.profit / (holding.totalValue - holding.profit)) * 100 : 0
+        profitRate: holding.holdingAmount > 0 ? (holding.holdingProfit / (holding.holdingAmount - holding.holdingProfit)) * 100 : 0
       }))
     : // 普通钱包：只显示当前钱包的持仓
       userHoldings.filter(holding => holding.walletId === currentWalletId);
@@ -294,26 +294,26 @@ export default function FundTab({
                     <div className="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-3">
                       <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-1">总持仓金额</p>
                       <p className="text-lg font-semibold text-zinc-900 dark:text-white">
-                        {formatCurrency(currentWalletHoldings.reduce((sum, holding) => sum + holding.totalValue, 0))}
+                        {formatCurrency(currentWalletHoldings.reduce((sum, holding) => sum + holding.holdingAmount, 0))}
                       </p>
                     </div>
                     
                     {/* 累计盈亏金额 */}
                     <div className="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-3">
                       <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-1">累计盈亏金额</p>
-                      <p className={`text-lg font-semibold ${getChangeColorClass(currentWalletHoldings.reduce((sum, holding) => sum + holding.profit, 0) > 0)}`}>
-                        {currentWalletHoldings.reduce((sum, holding) => sum + holding.profit, 0) > 0 ? '+' : ''}
-                        {formatCurrency(currentWalletHoldings.reduce((sum, holding) => sum + holding.profit, 0))}
+                      <p className={`text-lg font-semibold ${getChangeColorClass(currentWalletHoldings.reduce((sum, holding) => sum + holding.holdingProfit, 0) > 0)}`}>
+                        {currentWalletHoldings.reduce((sum, holding) => sum + holding.holdingProfit, 0) > 0 ? '+' : ''}
+                        {formatCurrency(currentWalletHoldings.reduce((sum, holding) => sum + holding.holdingProfit, 0))}
                       </p>
                     </div>
                     
                     {/* 累计盈亏比例 */}
                     <div className="bg-zinc-50 dark:bg-zinc-800 rounded-lg p-3">
                       <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-1">累计盈亏比例</p>
-                      <p className={`text-lg font-semibold ${getChangeColorClass(currentWalletHoldings.reduce((sum, holding) => sum + holding.profit, 0) > 0)}`}>
+                      <p className={`text-lg font-semibold ${getChangeColorClass(currentWalletHoldings.reduce((sum, holding) => sum + holding.holdingProfit, 0) > 0)}`}>
                         {(() => {
-                          const totalProfit = currentWalletHoldings.reduce((sum, holding) => sum + holding.profit, 0);
-                          const totalCost = currentWalletHoldings.reduce((sum, holding) => sum + (holding.totalValue - holding.profit), 0);
+                          const totalProfit = currentWalletHoldings.reduce((sum, holding) => sum + holding.holdingProfit, 0);
+                          const totalCost = currentWalletHoldings.reduce((sum, holding) => sum + (holding.holdingAmount - holding.holdingProfit), 0);
                           const profitRate = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
                           return formatPercentage(profitRate);
                         })()}
@@ -360,7 +360,7 @@ export default function FundTab({
                       </thead>
                       <tbody>
                         {currentWalletHoldings.map((holding, i) => {
-                          const isUp = holding.profit > 0;
+                          const isUp = holding.holdingProfit > 0;
                           return (
                             <tr key={i} className="border-b border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800">
                               <td className="py-3 px-4">
@@ -384,9 +384,9 @@ export default function FundTab({
                               <td className="py-3 px-4 text-sm text-zinc-600 dark:text-zinc-400">{holding.code}</td>
                               <td className="py-3 px-4 text-sm text-zinc-600 dark:text-zinc-400">{holding.type}</td>
                               <td className="py-3 px-4 text-sm text-zinc-600 dark:text-zinc-400">{holding.industryInfo || '---'}</td>
-                              <td className="py-3 px-4 text-sm text-zinc-900 dark:text-white">{formatCurrency(holding.totalValue)}</td>
+                              <td className="py-3 px-4 text-sm text-zinc-900 dark:text-white">{formatCurrency(holding.holdingAmount)}</td>
                               <td className={`py-3 px-4 text-sm font-medium ${getChangeColorClass(isUp)}`}>
-                                {isUp ? '+' : ''}{formatCurrency(holding.profit)}
+                                {isUp ? '+' : ''}{formatCurrency(holding.holdingProfit)}
                               </td>
                               <td className={`py-3 px-4 text-sm font-medium ${getChangeColorClass(isUp)}`}>
                                 {formatPercentage(holding.profitRate)}
@@ -400,8 +400,8 @@ export default function FundTab({
                                           setEditingHolding({
                                             code: holding.code,
                                             fundName: holding.fundName,
-                                            totalValue: holding.totalValue,
-                                            profit: holding.profit,
+                                            holdingAmount: holding.holdingAmount,
+                                            holdingProfit: holding.holdingProfit,
                                             type: holding.type,
                                             industryInfo: holding.industryInfo || '',
                                             walletId: holding.walletId
