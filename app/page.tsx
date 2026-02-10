@@ -3,7 +3,8 @@
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import Link from 'next/link';
 import { Search, Bell, Settings, ChevronDown, TrendingUp, BarChart2, Bookmark, Home, DollarSign, LineChart as LineChartIcon } from 'lucide-react';
-import { fundMockService, FundInfo, MarketIndex, MacroEconomicData, MacroEconomicCumulative, UserHolding, Wallet, PreciousMetal, PreciousMetalHistory, formatCurrency, formatPercentage } from '@/lib/mockData';
+import { FundInfo, MarketIndex, MacroEconomicData, MacroEconomicCumulative, UserHolding, Wallet, PreciousMetal, PreciousMetalHistory, formatCurrency, formatPercentage } from '@/lib/dataService';
+import dataService from '@/lib/dataService';
 
 // 懒加载组件
 const FundTab = lazy(() => import('./components/FundTab'));
@@ -107,6 +108,16 @@ export default function HomePage() {
     };
   }, []);
 
+  // 监听用户持仓变化并自动保存
+  useEffect(() => {
+    dataService.saveUserHoldings(userHoldings);
+  }, [userHoldings]);
+
+  // 监听钱包变化并自动保存
+  useEffect(() => {
+    dataService.saveWallets(wallets);
+  }, [wallets]);
+
   // 注意：移除了定期检查本地存储的interval，因为：
   // 1. 它会导致频繁的组件重渲染
   // 2. 本地存储的变化已经通过storage事件监听器处理
@@ -114,55 +125,56 @@ export default function HomePage() {
 
   // 如需在同一页面内同步设置变化，请在修改localStorage后直接更新对应的状态
 
-  // 初始化数据并启动实时更新
+  // 从LocalStorage加载初始数据
   useEffect(() => {
-    // 获取初始数据
-    const updateData = () => {
+    const loadInitialData = () => {
       try {
-        const allFunds = fundMockService.getAllFunds();
+        // 初始化应用数据
+        dataService.initializeData();
+        
+        // 加载用户数据
+        const savedHoldings = dataService.getUserHoldings();
+        if (savedHoldings && savedHoldings.length > 0) {
+          setUserHoldings(savedHoldings);
+        }
+        
+        const savedWallets = dataService.getWallets();
+        if (savedWallets && savedWallets.length > 0) {
+          setWallets(savedWallets);
+        }
+        
+        // 加载市场数据
+        const allFunds = dataService.getAllFunds();
         setFunds(allFunds);
-        const indices = fundMockService.getMarketIndices();
+        const indices = dataService.getMarketIndices();
         setMarketIndices(indices);
         
         // 获取贵金属数据
-        const metals = fundMockService.getPreciousMetals();
+        const metals = dataService.getPreciousMetals();
         setPreciousMetals(metals);
         
         // 获取基金持仓汇总数据
-        const holdingsSummary = fundMockService.getFundHoldingsSummary();
+        const holdingsSummary = dataService.getFundHoldingsSummary();
         setFundHoldingsSummary(holdingsSummary);
         
         // 获取宏观经济数据
-        const macroData = fundMockService.getMacroEconomicData();
+        const macroData = dataService.getMacroEconomicData();
         setMacroEconomicData(macroData);
-        const cumulativeData = fundMockService.getMacroEconomicCumulative();
+        const cumulativeData = dataService.getMacroEconomicCumulative();
         setMacroEconomicCumulative(cumulativeData);
         
         // 获取贵金属历史数据
-        const goldData = fundMockService.getPreciousMetalHistory('黄金', 30);
+        const goldData = dataService.getPreciousMetalHistory('黄金', 30);
         setGoldHistory(goldData);
-        const silverData = fundMockService.getPreciousMetalHistory('白银', 30);
+        const silverData = dataService.getPreciousMetalHistory('白银', 30);
         setSilverHistory(silverData);
       } catch (error) {
-        console.error('Error updating data:', error);
+        console.error('Error loading initial data:', error);
         // 即使出错也继续运行，确保页面不会崩溃
       }
     };
 
-    // 初始更新
-    updateData();
-
-    // 添加数据更新监听器
-    fundMockService.addListener(updateData);
-
-    // 启动实时数据更新（每5秒）
-    fundMockService.startUpdates(5000);
-
-    // 清理函数
-    return () => {
-      fundMockService.removeListener(updateData);
-      fundMockService.stopUpdates();
-    };
+    loadInitialData();
   }, []);
 
   // 使用 useMemo 缓存过滤和排序后的基金数据
@@ -190,7 +202,7 @@ export default function HomePage() {
       }
 
       // 排序
-      return fundMockService.sortFunds(sortBy, sortOrder, result);
+      return dataService.sortFunds(sortBy, sortOrder, result);
     } catch (error) {
       console.error('Error filtering or sorting funds:', error);
       // 出错时返回原始基金数据，确保页面不会崩溃
@@ -240,7 +252,7 @@ export default function HomePage() {
       // 使用传入的盈亏值
       const holdingProfit = holding.holdingProfit || 0;
       
-      // 计算成本和盈亏比例
+      // 计算成本和盈亏率
       const cost = holdingAmount - holdingProfit;
       // 确保成本为正数，避免除以零或负数
       const validCost = cost > 0 ? cost : 0;
@@ -533,7 +545,7 @@ export default function HomePage() {
       
       setUserHoldings(userHoldings.map(h => {
         if (h.code === holding.code && h.walletId === holding.walletId) {
-          // 计算成本和盈亏比例
+          // 计算成本和盈亏率
           const cost = holding.holdingAmount - holding.holdingProfit;
           const validCost = cost > 0 ? cost : 0;
           const profitRate = validCost > 0 ? (holding.holdingProfit / validCost) * 100 : 0;
@@ -624,23 +636,12 @@ export default function HomePage() {
         <Suspense fallback={<div className="flex justify-center items-center h-64">加载中...</div>}>
           {activeTab === 'fund' && (
             <FundTab 
-              marketIndices={marketIndices}
-              fundHoldingsSummary={fundHoldingsSummary}
               funds={funds}
-              filteredFunds={filteredAndSortedFunds}
               userHoldings={userHoldings}
               wallets={wallets}
               currentWalletId={currentWalletId}
-              sortBy={sortBy}
-              sortOrder={sortOrder}
-              searchQuery={searchQuery}
               fundType={fundType}
-              riskLevel={riskLevel}
-              handleSortChange={handleSortChange}
-              handleResetFilters={handleResetFilters}
-              setSearchQuery={setSearchQuery}
               setFundType={setFundType}
-              setRiskLevel={setRiskLevel}
               onAddHolding={handleAddHolding}
               onBatchAddHolding={handleBatchAddHolding}
               onDeleteHolding={handleDeleteHolding}

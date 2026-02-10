@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { ArrowLeft, TrendingUp, BarChart2, User, Calendar, Shield, PieChart, Maximize2, Minimize2 } from 'lucide-react';
-import { fundMockService, FundInfo, FundHistory, formatCurrency, formatPercentage } from '@/lib/mockData';
+import { FundInfo, FundHistory, formatCurrency, formatPercentage } from '@/lib/dataService';
+import dataService from '@/lib/dataService';
 
 /**
  * 基金详情页面
@@ -34,7 +35,7 @@ export default function FundDetailPage() {
 
       try {
         // 获取基金详情
-        const fundData = fundMockService.getFundByCode(fundCode);
+        const fundData = dataService.getFundByCode(fundCode);
         if (!fundData) {
           setError('未找到该基金信息');
           setLoading(false);
@@ -66,7 +67,31 @@ export default function FundDetailPage() {
         
         // 获取历史数据
         try {
-          const history = fundMockService.getFundHistory(fundCode, days);
+          // 生成模拟历史数据
+          const generateFundHistory = (code: string, days: number = 30): FundHistory[] => {
+            const history: FundHistory[] = [];
+            const today = new Date();
+            let baseValue = 1 + Math.random() * 2; // 初始值 1-3 之间
+            
+            for (let i = days; i >= 0; i--) {
+              const date = new Date(today);
+              date.setDate(date.getDate() - i);
+              const dateStr = date.toISOString().split('T')[0];
+              
+              // 生成带有随机波动的历史数据
+              baseValue = baseValue * (1 + (Math.random() - 0.5) * 0.02);
+              
+              history.push({
+                code,
+                date: dateStr,
+                value: parseFloat(baseValue.toFixed(4))
+              });
+            }
+            
+            return history;
+          };
+          
+          const history = generateFundHistory(fundCode, days);
           setHistoryData(history);
         } catch (historyError) {
           console.error('Error fetching fund history:', historyError);
@@ -162,7 +187,31 @@ export default function FundDetailPage() {
     setTimeRange(range);
     try {
       const days = getDaysForRange(range);
-      const history = fundMockService.getFundHistory(fundCode, days);
+      // 生成模拟历史数据
+      const generateFundHistory = (code: string, days: number = 30): FundHistory[] => {
+        const history: FundHistory[] = [];
+        const today = new Date();
+        let baseValue = 1 + Math.random() * 2; // 初始值 1-3 之间
+        
+        for (let i = days; i >= 0; i--) {
+          const date = new Date(today);
+          date.setDate(date.getDate() - i);
+          const dateStr = date.toISOString().split('T')[0];
+          
+          // 生成带有随机波动的历史数据
+          baseValue = baseValue * (1 + (Math.random() - 0.5) * 0.02);
+          
+          history.push({
+            code,
+            date: dateStr,
+            value: parseFloat(baseValue.toFixed(4))
+          });
+        }
+        
+        return history;
+      };
+      
+      const history = generateFundHistory(fundCode, days);
       setHistoryData(history);
     } catch (error) {
       console.error('Error fetching fund history for time range:', error);

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { DollarSign, LineChart as LineChartIcon, TrendingUp, Maximize2, Minimize2 } from 'lucide-react';
-import { MacroEconomicData, MarketIndex, MacroEconomicCumulative } from '@/lib/mockData';
+import { MacroEconomicData, MarketIndex, MacroEconomicCumulative } from '@/lib/dataService';
 
 interface MarketTabProps {
   marketIndices: MarketIndex[];
