@@ -7,6 +7,3 @@
   port = 8888
   targetPort = 3000
   autoLaunch = true
-
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
