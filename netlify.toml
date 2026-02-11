@@ -3,9 +3,12 @@
   publish = ".next/static"
   functions = ".netlify/functions"
 
+# 本地开发配置（Netlify CLI运行时使用）
 [dev]
-  command = "pnpm run dev"
+  # 本地开发命令
+  command = "npm run dev"
+  # Next.js默认端口
   port = 3000
-
+  
 [build.environment]
   NODE_ENV = "production"
