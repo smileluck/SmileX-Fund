@@ -69,20 +69,23 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
   // 更新输入项
   const handleUpdateItem = async (index: number, field: keyof BatchAddItem, value: string | number) => {
     const newItems = [...items];
+    let updatedValue: string | number = value;
+
+    
     newItems[index] = {
       ...newItems[index],
-      [field]: field === 'code' ? value : parseFloat(value as string) || 0,
+      [field]: updatedValue,
       error: '' // 重置错误信息
     };
 
     // 实时校验
-    const item = newItems[index];
     if (field === 'code') {
       if (typeof value === 'string' && value.length > 0 && !/^\d{6}$/.test(value)) {
         newItems[index].error = '基金代码必须为6位数字';
       }
     } else if (field === 'holdingAmount') {
-      if (parseFloat(value as string) < 0) {
+      const numValue = typeof updatedValue === 'number' ? updatedValue : parseFloat(updatedValue);
+      if (!isNaN(numValue) && numValue < 0) {
         newItems[index].error = '持仓金额不能小于0';
       }
     }
@@ -348,7 +351,7 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
                       持仓金额
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider" style={{ width: '10%' }}>
-                      持有盈亏
+                      持仓盈亏
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider" style={{ width: '15%' }}>
                       操作
@@ -402,7 +405,7 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
                         <td className="px-3 py-3 whitespace-nowrap">
                           <input
                             type="number"
-                            value={item.holdingProfit || 0}
+                            value={item.holdingProfit}
                             onChange={(e) => handleUpdateItem(index, 'holdingProfit', e.target.value)}
                             placeholder="0"
                             step="0.01"
