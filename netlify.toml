@@ -1,2 +1,12 @@
+[build]
+  publish = ".next"
+  command = "pnpm run build"
+
+[dev]
+  command = "pnpm start"
+  port = 8888
+  targetPort = 3000
+  autoLaunch = true
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
