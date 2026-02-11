@@ -3,9 +3,6 @@
   publish = ".next/static"
   functions = ".netlify/functions"
 
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
-
 [dev]
   command = "pnpm run dev"
   port = 3000
