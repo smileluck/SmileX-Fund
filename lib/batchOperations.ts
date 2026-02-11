@@ -1,7 +1,7 @@
 // 批量操作工具函数
 // 提供持仓的批量添加和删除功能
 
-import { UserHolding } from './mockData';
+import { UserHolding } from './dataService';
 import { searchFund } from './api';
 
 /**

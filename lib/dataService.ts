@@ -88,6 +88,38 @@ export interface PreciousMetalHistory {
   value: number;         // 价格
 }
 
+// 银行投资金条价格接口
+export interface BankGoldBarPrice {
+  bank: string;          // 银行名称
+  price: string;         // 价格
+  unit?: string;         // 单位
+}
+
+// 贵金属回收价格接口
+export interface GoldRecyclePrice {
+  gold_type: string;     // 品种
+  recycle_price: string; // 价格
+  updated_date: string;  // 更新时间
+  unit?: string;         // 单位
+}
+
+// 品牌贵金属价格接口
+export interface BrandPreciousMetalPrice {
+  brand: string;         // 品牌
+  bullion_price: string; // 金条价
+  gold_price: string;    // 黄金价
+  platinum_price: string; // 铂金价
+  updated_date: string;  // 更新日期
+  unit?: string;         // 单位
+}
+
+// 完整贵金属数据接口
+export interface CompletePreciousMetalData {
+  bankGoldBarPrices: BankGoldBarPrice[];
+  goldRecyclePrices: GoldRecyclePrice[];
+  brandPrices: BrandPreciousMetalPrice[];
+}
+
 // 钱包接口
 export interface Wallet {
   id: string;            // 钱包ID
@@ -132,6 +164,10 @@ const STORAGE_KEYS = {
   FUNDS: `${STORAGE_PREFIX}:funds`,
   MARKET_INDICES: `${STORAGE_PREFIX}:marketIndices`,
   PRECIOUS_METALS: `${STORAGE_PREFIX}:preciousMetals`,
+  BANK_GOLD_BAR_PRICES: `${STORAGE_PREFIX}:bankGoldBarPrices`,
+  GOLD_RECYCLE_PRICES: `${STORAGE_PREFIX}:goldRecyclePrices`,
+  BRAND_PRECIOUS_METAL_PRICES: `${STORAGE_PREFIX}:brandPreciousMetalPrices`,
+  PRECIOUS_METAL_SYNC_TIME: `${STORAGE_PREFIX}:preciousMetalSyncTime`,
   FUND_HOLDINGS_SUMMARY: `${STORAGE_PREFIX}:fundHoldingsSummary`
 };
 
@@ -656,6 +692,306 @@ class DataService {
   }
 
   /**
+   * 获取银行投资金条价格
+   * @returns 银行投资金条价格数组
+   */
+  getBankGoldBarPrices(): BankGoldBarPrice[] {
+    const defaultBankGoldBarPrices: BankGoldBarPrice[] = [
+      { bank: '农行传世之宝金条', price: '805.27', unit: '元/克' },
+      { bank: '浦发银行投资金条', price: '803.45', unit: '元/克' },
+      { bank: '和谐平安金条', price: '792.1', unit: '元/克' },
+      { bank: '工商银行如意金条', price: '797.66', unit: '元/克' },
+      { bank: '中国银行金条', price: '794.98', unit: '元/克' },
+      { bank: '建设银行龙鼎金条', price: '797.1', unit: '元/克' }
+    ];
+    return this.readFromStorage<BankGoldBarPrice[]>(STORAGE_KEYS.BANK_GOLD_BAR_PRICES, defaultBankGoldBarPrices);
+  }
+
+  /**
+   * 保存银行投资金条价格
+   * @param bankGoldBarPrices 银行投资金条价格数组
+   */
+  saveBankGoldBarPrices(bankGoldBarPrices: BankGoldBarPrice[]): void {
+    this.saveToStorage(STORAGE_KEYS.BANK_GOLD_BAR_PRICES, bankGoldBarPrices);
+  }
+
+  /**
+   * 获取贵金属回收价格
+   * @returns 贵金属回收价格数组
+   */
+  getGoldRecyclePrices(): GoldRecyclePrice[] {
+    const defaultGoldRecyclePrices: GoldRecyclePrice[] = [
+      { gold_type: '24K金回收', recycle_price: '767.0', updated_date: '2025-07-22', unit: '元/克' },
+      { gold_type: '18K金回收', recycle_price: '571.0', updated_date: '2025-07-22', unit: '元/克' },
+      { gold_type: '14K金回收', recycle_price: '442.0', updated_date: '2025-07-22', unit: '元/克' },
+      { gold_type: 'pd950钯金回收', recycle_price: '259.0', updated_date: '2025-07-22', unit: '元/克' },
+      { gold_type: 'pd990钯金回收', recycle_price: '270.0', updated_date: '2025-07-22', unit: '元/克' },
+      { gold_type: 'pd999钯金回收', recycle_price: '273.0', updated_date: '2025-07-22', unit: '元/克' },
+      { gold_type: '黄金回收', recycle_price: '771.0', updated_date: '2025-07-22', unit: '元/克' },
+      { gold_type: '925银条回收', recycle_price: '7.18', updated_date: '2025-07-22', unit: '元/克' },
+      { gold_type: '足银回收', recycle_price: '8.29', updated_date: '2025-07-22', unit: '元/克' }
+    ];
+    return this.readFromStorage<GoldRecyclePrice[]>(STORAGE_KEYS.GOLD_RECYCLE_PRICES, defaultGoldRecyclePrices);
+  }
+
+  /**
+   * 保存贵金属回收价格
+   * @param goldRecyclePrices 贵金属回收价格数组
+   */
+  saveGoldRecyclePrices(goldRecyclePrices: GoldRecyclePrice[]): void {
+    this.saveToStorage(STORAGE_KEYS.GOLD_RECYCLE_PRICES, goldRecyclePrices);
+  }
+
+  /**
+   * 获取品牌贵金属价格
+   * @returns 品牌贵金属价格数组
+   */
+  getBrandPreciousMetalPrices(): BrandPreciousMetalPrice[] {
+    const defaultBrandPreciousMetalPrices: BrandPreciousMetalPrice[] = [
+      { brand: '周六福', bullion_price: '900', gold_price: '988', platinum_price: '621', updated_date: '2025-07-22', unit: '元/克' },
+      { brand: '老凤祥', bullion_price: '966', gold_price: '1016', platinum_price: '470', updated_date: '2025-07-22', unit: '元/克' },
+      { brand: '老庙黄金', bullion_price: '969', gold_price: '1014', platinum_price: '470', updated_date: '2025-07-22', unit: '元/克' },
+      { brand: '菜百首饰', bullion_price: '890', gold_price: '996', platinum_price: '445', updated_date: '2025-07-22', unit: '元/克' },
+      { brand: '潮宏基', bullion_price: '1015', gold_price: '1015', platinum_price: '588', updated_date: '2025-07-22', unit: '元/克' },
+      { brand: '金至尊', bullion_price: '1015', gold_price: '1015', platinum_price: '588', updated_date: '2025-07-22', unit: '元/克' },
+      { brand: '谢瑞麟', bullion_price: '952', gold_price: '1015', platinum_price: '-', updated_date: '2025-07-22', unit: '元/克' },
+      { brand: '六福珠宝', bullion_price: '1015', gold_price: '1015', platinum_price: '588', updated_date: '2025-07-22', unit: '元/克' },
+      { brand: '周生生', bullion_price: '952', gold_price: '1021', platinum_price: '588', updated_date: '2025-07-22', unit: '元/克' },
+      { brand: '周大福', bullion_price: '1015', gold_price: '1015', platinum_price: '-', updated_date: '2025-07-22', unit: '元/克' }
+    ];
+    return this.readFromStorage<BrandPreciousMetalPrice[]>(STORAGE_KEYS.BRAND_PRECIOUS_METAL_PRICES, defaultBrandPreciousMetalPrices);
+  }
+
+  /**
+   * 保存品牌贵金属价格
+   * @param brandPreciousMetalPrices 品牌贵金属价格数组
+   */
+  saveBrandPreciousMetalPrices(brandPreciousMetalPrices: BrandPreciousMetalPrice[]): void {
+    this.saveToStorage(STORAGE_KEYS.BRAND_PRECIOUS_METAL_PRICES, brandPreciousMetalPrices);
+  }
+
+  /**
+   * 获取贵金属数据同步时间
+   * @returns 同步时间字符串或null
+   */
+  getPreciousMetalSyncTime(): string | null {
+    return this.readFromStorage<string | null>(STORAGE_KEYS.PRECIOUS_METAL_SYNC_TIME, null);
+  }
+
+  /**
+   * 保存贵金属数据同步时间
+   * @param syncTime 同步时间字符串
+   */
+  savePreciousMetalSyncTime(syncTime: string): void {
+    this.saveToStorage(STORAGE_KEYS.PRECIOUS_METAL_SYNC_TIME, syncTime);
+  }
+
+  /**
+   * 从API获取贵金属数据
+   * @returns Promise<PreciousMetal[]> 贵金属数据数组
+   */
+  async fetchPreciousMetalsFromAPI(): Promise<PreciousMetal[]> {
+    try {
+      // 调用贵金属API（通过代理路由解决CORS问题）
+      const response = await fetch('/api/precious-metal');
+      
+      if (!response.ok) {
+        throw new Error(`API请求失败: ${response.status}`);
+      }
+      
+      const apiResponse = await response.json();
+      
+      // 保存完整的贵金属数据
+      if (apiResponse.data) {
+        // 保存银行投资金条价格
+        if (apiResponse.data.bank_gold_bar_price) {
+          const bankGoldBarPrices = apiResponse.data.bank_gold_bar_price.map((item: any) => ({
+            bank: item.bank,
+            price: item.price,
+            unit: '元/克'
+          }));
+          this.saveBankGoldBarPrices(bankGoldBarPrices);
+        }
+        
+        // 保存贵金属回收价格
+        if (apiResponse.data.gold_recycle_price) {
+          const goldRecyclePrices = apiResponse.data.gold_recycle_price.map((item: any) => ({
+            gold_type: item.gold_type,
+            recycle_price: item.recycle_price,
+            updated_date: item.updated_date,
+            unit: '元/克'
+          }));
+          this.saveGoldRecyclePrices(goldRecyclePrices);
+        }
+        
+        // 保存品牌贵金属价格
+        if (apiResponse.data.precious_metal_price) {
+          const brandPreciousMetalPrices = apiResponse.data.precious_metal_price.map((item: any) => ({
+            brand: item.brand,
+            bullion_price: item.bullion_price,
+            gold_price: item.gold_price,
+            platinum_price: item.platinum_price,
+            updated_date: item.updated_date,
+            unit: '元/克'
+          }));
+          this.saveBrandPreciousMetalPrices(brandPreciousMetalPrices);
+        }
+      }
+      
+      // 转换数据格式，确保符合PreciousMetal接口
+      const preciousMetals: PreciousMetal[] = [];
+      
+      // 处理黄金数据
+      if (apiResponse.data && apiResponse.data.precious_metal_price) {
+        // 获取第一个品牌的黄金价格
+        const firstBrand = apiResponse.data.precious_metal_price[0];
+        if (firstBrand && firstBrand.gold_price) {
+          preciousMetals.push({
+            name: '黄金',
+            value: firstBrand.gold_price,
+            change: '+0.00%', // API未提供涨跌幅，使用默认值
+            isUp: true,
+            unit: '元/克'
+          });
+        }
+      }
+      
+      // 处理白银数据
+      // 从黄金回收价格中获取白银价格的近似值
+      if (apiResponse.data && apiResponse.data.gold_recycle_price) {
+        const silverItem = apiResponse.data.gold_recycle_price.find((item: any) => 
+          item.gold_type.includes('银')
+        );
+        if (silverItem && silverItem.recycle_price) {
+          preciousMetals.push({
+            name: '白银',
+            value: silverItem.recycle_price,
+            change: '-0.00%', // API未提供涨跌幅，使用默认值
+            isUp: false,
+            unit: '元/克'
+          });
+        } else {
+          // 如果没有白银数据，使用默认值
+          preciousMetals.push({
+            name: '白银',
+            value: '5.23',
+            change: '-0.15%',
+            isUp: false,
+            unit: '元/克'
+          });
+        }
+      }
+      
+      // 确保至少返回黄金和白银数据
+      if (preciousMetals.length === 0) {
+        // 使用默认数据
+        preciousMetals.push(
+          {
+            name: '黄金',
+            value: '412.56',
+            change: '+0.32%',
+            isUp: true,
+            unit: '元/克'
+          },
+          {
+            name: '白银',
+            value: '5.23',
+            change: '-0.15%',
+            isUp: false,
+            unit: '元/克'
+          }
+        );
+      }
+      
+      return preciousMetals;
+    } catch (error) {
+      console.error('获取贵金属数据失败:', error);
+      // 出错时返回默认数据
+      return [
+        {
+          name: '黄金',
+          value: '412.56',
+          change: '+0.32%',
+          isUp: true,
+          unit: '元/克'
+        },
+        {
+          name: '白银',
+          value: '5.23',
+          change: '-0.15%',
+          isUp: false,
+          unit: '元/克'
+        }
+      ];
+    }
+  }
+
+  /**
+   * 从API获取完整的贵金属数据
+   * @returns Promise<CompletePreciousMetalData> 完整的贵金属数据
+   */
+  async fetchCompletePreciousMetalDataFromAPI(): Promise<CompletePreciousMetalData> {
+    try {
+      // 调用贵金属API（通过代理路由解决CORS问题）
+      const response = await fetch('https://v2.xxapi.cn/api/goldprice');
+      
+      if (!response.ok) {
+        throw new Error(`API请求失败: ${response.status}`);
+      }
+      
+      const apiResponse = await response.json();
+      
+      // 处理银行投资金条价格
+      const bankGoldBarPrices = apiResponse.data?.bank_gold_bar_price?.map((item: any) => ({
+        bank: item.bank,
+        price: item.price,
+        unit: '元/克'
+      })) || [];
+      
+      // 处理贵金属回收价格
+      const goldRecyclePrices = apiResponse.data?.gold_recycle_price?.map((item: any) => ({
+        gold_type: item.gold_type,
+        recycle_price: item.recycle_price,
+        updated_date: item.updated_date,
+        unit: '元/克'
+      })) || [];
+      
+      // 处理品牌贵金属价格
+      const brandPrices = apiResponse.data?.precious_metal_price?.map((item: any) => ({
+        brand: item.brand,
+        bullion_price: item.bullion_price,
+        gold_price: item.gold_price,
+        platinum_price: item.platinum_price,
+        updated_date: item.updated_date,
+        unit: '元/克'
+      })) || [];
+      
+      // 保存数据到本地存储
+      this.saveBankGoldBarPrices(bankGoldBarPrices);
+      this.saveGoldRecyclePrices(goldRecyclePrices);
+      this.saveBrandPreciousMetalPrices(brandPrices);
+      
+      // 保存同步时间
+      const syncTime = new Date().toLocaleString('zh-CN');
+      this.savePreciousMetalSyncTime(syncTime);
+      
+      return {
+        bankGoldBarPrices,
+        goldRecyclePrices,
+        brandPrices
+      };
+    } catch (error) {
+      console.error('获取完整贵金属数据失败:', error);
+      // 出错时返回本地存储的数据
+      return {
+        bankGoldBarPrices: this.getBankGoldBarPrices(),
+        goldRecyclePrices: this.getGoldRecyclePrices(),
+        brandPrices: this.getBrandPreciousMetalPrices()
+      };
+    }
+  }
+
+  /**
    * 初始化应用数据
    * 确保所有必要的数据都已保存到LocalStorage
    */
@@ -705,6 +1041,52 @@ class DataService {
           { name: '白银', value: '5.23', change: '-0.15%', isUp: false, unit: '元/克' },
           { name: '铂金', value: '235.67', change: '+0.58%', isUp: true, unit: '元/克' },
           { name: '钯金', value: '312.45', change: '-0.24%', isUp: false, unit: '元/克' },
+        ]);
+      }
+
+      // 初始化银行投资金条价格数据
+      const bankGoldBarPrices = this.getBankGoldBarPrices();
+      if (!bankGoldBarPrices || bankGoldBarPrices.length === 0) {
+        this.saveBankGoldBarPrices([
+          { bank: '农行传世之宝金条', price: '805.27', unit: '元/克' },
+          { bank: '浦发银行投资金条', price: '803.45', unit: '元/克' },
+          { bank: '和谐平安金条', price: '792.1', unit: '元/克' },
+          { bank: '工商银行如意金条', price: '797.66', unit: '元/克' },
+          { bank: '中国银行金条', price: '794.98', unit: '元/克' },
+          { bank: '建设银行龙鼎金条', price: '797.1', unit: '元/克' }
+        ]);
+      }
+
+      // 初始化贵金属回收价格数据
+      const goldRecyclePrices = this.getGoldRecyclePrices();
+      if (!goldRecyclePrices || goldRecyclePrices.length === 0) {
+        this.saveGoldRecyclePrices([
+          { gold_type: '24K金回收', recycle_price: '767.0', updated_date: '2025-07-22', unit: '元/克' },
+          { gold_type: '18K金回收', recycle_price: '571.0', updated_date: '2025-07-22', unit: '元/克' },
+          { gold_type: '14K金回收', recycle_price: '442.0', updated_date: '2025-07-22', unit: '元/克' },
+          { gold_type: 'pd950钯金回收', recycle_price: '259.0', updated_date: '2025-07-22', unit: '元/克' },
+          { gold_type: 'pd990钯金回收', recycle_price: '270.0', updated_date: '2025-07-22', unit: '元/克' },
+          { gold_type: 'pd999钯金回收', recycle_price: '273.0', updated_date: '2025-07-22', unit: '元/克' },
+          { gold_type: '黄金回收', recycle_price: '771.0', updated_date: '2025-07-22', unit: '元/克' },
+          { gold_type: '925银条回收', recycle_price: '7.18', updated_date: '2025-07-22', unit: '元/克' },
+          { gold_type: '足银回收', recycle_price: '8.29', updated_date: '2025-07-22', unit: '元/克' }
+        ]);
+      }
+
+      // 初始化品牌贵金属价格数据
+      const brandPreciousMetalPrices = this.getBrandPreciousMetalPrices();
+      if (!brandPreciousMetalPrices || brandPreciousMetalPrices.length === 0) {
+        this.saveBrandPreciousMetalPrices([
+          { brand: '周六福', bullion_price: '900', gold_price: '988', platinum_price: '621', updated_date: '2025-07-22', unit: '元/克' },
+          { brand: '老凤祥', bullion_price: '966', gold_price: '1016', platinum_price: '470', updated_date: '2025-07-22', unit: '元/克' },
+          { brand: '老庙黄金', bullion_price: '969', gold_price: '1014', platinum_price: '470', updated_date: '2025-07-22', unit: '元/克' },
+          { brand: '菜百首饰', bullion_price: '890', gold_price: '996', platinum_price: '445', updated_date: '2025-07-22', unit: '元/克' },
+          { brand: '潮宏基', bullion_price: '1015', gold_price: '1015', platinum_price: '588', updated_date: '2025-07-22', unit: '元/克' },
+          { brand: '金至尊', bullion_price: '1015', gold_price: '1015', platinum_price: '588', updated_date: '2025-07-22', unit: '元/克' },
+          { brand: '谢瑞麟', bullion_price: '952', gold_price: '1015', platinum_price: '-', updated_date: '2025-07-22', unit: '元/克' },
+          { brand: '六福珠宝', bullion_price: '1015', gold_price: '1015', platinum_price: '588', updated_date: '2025-07-22', unit: '元/克' },
+          { brand: '周生生', bullion_price: '952', gold_price: '1021', platinum_price: '588', updated_date: '2025-07-22', unit: '元/克' },
+          { brand: '周大福', bullion_price: '1015', gold_price: '1015', platinum_price: '-', updated_date: '2025-07-22', unit: '元/克' }
         ]);
       }
 

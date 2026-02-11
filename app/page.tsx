@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import Link from 'next/link';
 import { Search, Bell, Settings, ChevronDown, TrendingUp, BarChart2, Bookmark, Home, DollarSign, LineChart as LineChartIcon } from 'lucide-react';
-import { FundInfo, MarketIndex, MacroEconomicData, MacroEconomicCumulative, UserHolding, Wallet, PreciousMetal, PreciousMetalHistory, formatCurrency, formatPercentage } from '@/lib/dataService';
+import { FundInfo, MarketIndex, MacroEconomicData, MacroEconomicCumulative, UserHolding, Wallet, PreciousMetal, PreciousMetalHistory, BankGoldBarPrice, GoldRecyclePrice, BrandPreciousMetalPrice, formatCurrency, formatPercentage } from '@/lib/dataService';
 import dataService from '@/lib/dataService';
 
 // 懒加载组件
@@ -16,6 +16,10 @@ export default function HomePage() {
   const [funds, setFunds] = useState<FundInfo[]>([]);
   const [marketIndices, setMarketIndices] = useState<MarketIndex[]>([]);
   const [preciousMetals, setPreciousMetals] = useState<PreciousMetal[]>([]);
+  const [bankGoldBarPrices, setBankGoldBarPrices] = useState<BankGoldBarPrice[]>([]);
+  const [goldRecyclePrices, setGoldRecyclePrices] = useState<GoldRecyclePrice[]>([]);
+  const [brandPrices, setBrandPrices] = useState<BrandPreciousMetalPrice[]>([]);
+  const [preciousMetalSyncTime, setPreciousMetalSyncTime] = useState<string | null>(null);
   const [fundHoldingsSummary, setFundHoldingsSummary] = useState<{ industry: string; proportion: number; count: number }[]>([]);
   const [macroEconomicData, setMacroEconomicData] = useState<MacroEconomicData[]>([]);
   const [macroEconomicCumulative, setMacroEconomicCumulative] = useState<MacroEconomicCumulative[]>([]);
@@ -38,6 +42,8 @@ export default function HomePage() {
   const [itemsPerRow, setItemsPerRow] = useState(2); // 贵金属默认值为 2
   const [marketItemsPerRow, setMarketItemsPerRow] = useState(2); // 市场默认值为 2
   const [colorScheme, setColorScheme] = useState<'red-up' | 'red-down'>('red-up'); // 默认红色为涨
+  // 加载状态
+  const [isLoading, setIsLoading] = useState(false);
 
   // 从本地存储读取设置
   useEffect(() => {
@@ -125,6 +131,61 @@ export default function HomePage() {
 
   // 如需在同一页面内同步设置变化，请在修改localStorage后直接更新对应的状态
 
+  // 从API获取贵金属数据
+  const fetchPreciousMetals = async () => {
+    try {
+      setIsLoading(true);
+      const metals = await dataService.fetchPreciousMetalsFromAPI();
+      setPreciousMetals(metals);
+    } catch (error) {
+      console.error('Error fetching precious metals:', error);
+      // 出错时使用默认数据
+      setPreciousMetals([
+        {
+          name: '黄金',
+          value: '412.56',
+          change: '+0.32%',
+          isUp: true,
+          unit: '元/克'
+        },
+        {
+          name: '白银',
+          value: '5.23',
+          change: '-0.15%',
+          isUp: false,
+          unit: '元/克'
+        }
+      ]);
+    } finally {
+      // 更新贵金属同步时间
+      const syncTime = dataService.getPreciousMetalSyncTime();
+      setPreciousMetalSyncTime(syncTime);
+      setIsLoading(false);
+    }
+  };
+
+  // 从API获取完整的贵金属数据（包括银行金条、回收价格和品牌价格）
+  const fetchCompletePreciousMetalData = async () => {
+    try {
+      setIsLoading(true);
+      const completeData = await dataService.fetchCompletePreciousMetalDataFromAPI();
+      setBankGoldBarPrices(completeData.bankGoldBarPrices);
+      setGoldRecyclePrices(completeData.goldRecyclePrices);
+      setBrandPrices(completeData.brandPrices);
+    } catch (error) {
+      console.error('Error fetching complete precious metal data:', error);
+      // 出错时使用默认数据
+      setBankGoldBarPrices(dataService.getBankGoldBarPrices());
+      setGoldRecyclePrices(dataService.getGoldRecyclePrices());
+      setBrandPrices(dataService.getBrandPreciousMetalPrices());
+    } finally {
+      // 更新贵金属同步时间
+      const syncTime = dataService.getPreciousMetalSyncTime();
+      setPreciousMetalSyncTime(syncTime);
+      setIsLoading(false);
+    }
+  };
+
   // 从LocalStorage加载初始数据
   useEffect(() => {
     const loadInitialData = () => {
@@ -149,9 +210,10 @@ export default function HomePage() {
         const indices = dataService.getMarketIndices();
         setMarketIndices(indices);
         
-        // 获取贵金属数据
-        const metals = dataService.getPreciousMetals();
-        setPreciousMetals(metals);
+        // 获取贵金属数据（从API）
+        fetchPreciousMetals();
+        // 获取完整的贵金属数据（包括银行金条、回收价格和品牌价格）
+        fetchCompletePreciousMetalData();
         
         // 获取基金持仓汇总数据
         const holdingsSummary = dataService.getFundHoldingsSummary();
@@ -168,6 +230,10 @@ export default function HomePage() {
         setGoldHistory(goldData);
         const silverData = dataService.getPreciousMetalHistory('白银', 30);
         setSilverHistory(silverData);
+
+        // 获取贵金属同步时间
+        const initialSyncTime = dataService.getPreciousMetalSyncTime();
+        setPreciousMetalSyncTime(initialSyncTime);
       } catch (error) {
         console.error('Error loading initial data:', error);
         // 即使出错也继续运行，确保页面不会崩溃
@@ -175,6 +241,24 @@ export default function HomePage() {
     };
 
     loadInitialData();
+  }, []);
+
+  // 设置定时器，每隔1分钟获取一次贵金属数据
+  useEffect(() => {
+    // 初始加载
+    fetchPreciousMetals();
+    fetchCompletePreciousMetalData();
+    
+    // 设置定时器
+    const intervalId = setInterval(() => {
+      fetchPreciousMetals();
+      fetchCompletePreciousMetalData();
+    }, 60000); // 60秒 = 1分钟
+    
+    // 清理函数
+    return () => {
+      clearInterval(intervalId);
+    };
   }, []);
 
   // 使用 useMemo 缓存过滤和排序后的基金数据
@@ -658,8 +742,13 @@ export default function HomePage() {
               preciousMetals={preciousMetals} 
               goldHistory={goldHistory} 
               silverHistory={silverHistory} 
+              bankGoldBarPrices={bankGoldBarPrices}
+              goldRecyclePrices={goldRecyclePrices}
+              brandPrices={brandPrices}
+              preciousMetalSyncTime={preciousMetalSyncTime}
               itemsPerRow={itemsPerRow}
               colorScheme={colorScheme}
+              isLoading={isLoading}
             />
           )}
           {activeTab === 'market' && (
