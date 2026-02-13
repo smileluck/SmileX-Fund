@@ -24,6 +24,16 @@ export interface FundValuation {
   updateTime: string;     // 更新时间
 }
 
+// 基金实时数据接口（从外部API获取）
+export interface FundRealTimeData {
+  code: string;          // 基金代码
+  name: string;          // 基金名称
+  netValue: number;       // 最新净值
+  estimatedValue: number; // 估算净值
+  changeRate: number;     // 涨跌幅
+  updateTime: string;     // 更新时间
+}
+
 // 基金历史走势接口
 export interface FundHistory {
   code: string;          // 基金代码
@@ -168,7 +178,8 @@ const STORAGE_KEYS = {
   GOLD_RECYCLE_PRICES: `${STORAGE_PREFIX}:goldRecyclePrices`,
   BRAND_PRECIOUS_METAL_PRICES: `${STORAGE_PREFIX}:brandPreciousMetalPrices`,
   PRECIOUS_METAL_SYNC_TIME: `${STORAGE_PREFIX}:preciousMetalSyncTime`,
-  FUND_HOLDINGS_SUMMARY: `${STORAGE_PREFIX}:fundHoldingsSummary`
+  FUND_HOLDINGS_SUMMARY: `${STORAGE_PREFIX}:fundHoldingsSummary`,
+  TRACKED_FUNDS: `${STORAGE_PREFIX}:trackedFunds`
 };
 
 // 防抖函数
@@ -190,7 +201,8 @@ class DataService {
     this.debouncedSave = {
       userHoldings: debounce(this.saveToStorage.bind(this, STORAGE_KEYS.USER_HOLDINGS), 500),
       wallets: debounce(this.saveToStorage.bind(this, STORAGE_KEYS.WALLETS), 500),
-      settings: debounce(this.saveToStorage.bind(this, STORAGE_KEYS.SETTINGS), 500)
+      settings: debounce(this.saveToStorage.bind(this, STORAGE_KEYS.SETTINGS), 500),
+      trackedFunds: debounce(this.saveToStorage.bind(this, STORAGE_KEYS.TRACKED_FUNDS), 500)
     };
   }
 
@@ -202,17 +214,20 @@ class DataService {
    */
   private readFromStorage<T>(key: string, defaultValue: T): T {
     try {
-      // 检查缓存
-      if (this.cache[key]) {
+      // 检查缓存是否存在（使用key in this.cache确保空数组也能被正确处理）
+      if (key in this.cache) {
         return this.cache[key];
       }
 
-      const item = localStorage.getItem(key);
-      if (item) {
-        const parsed = JSON.parse(item);
-        // 更新缓存
-        this.cache[key] = parsed;
-        return parsed;
+      // 检查localStorage是否可用
+      if (typeof localStorage !== 'undefined') {
+        const item = localStorage.getItem(key);
+        if (item) {
+          const parsed = JSON.parse(item);
+          // 更新缓存
+          this.cache[key] = parsed;
+          return parsed;
+        }
       }
     } catch (error) {
       console.error(`Error reading from localStorage (${key}):`, error);
@@ -227,9 +242,21 @@ class DataService {
    */
   private saveToStorage(key: string, data: any): void {
     try {
-      localStorage.setItem(key, JSON.stringify(data));
-      // 更新缓存
+      console.log(`Attempting to save to localStorage (${key}):`, data);
+      // 检查localStorage是否可用
+      if (typeof localStorage !== 'undefined') {
+        console.log('localStorage is available');
+        localStorage.setItem(key, JSON.stringify(data));
+        console.log('Data saved to localStorage successfully');
+        // 验证保存是否成功
+        const savedData = localStorage.getItem(key);
+        console.log('Data retrieved from localStorage:', savedData);
+      } else {
+        console.log('localStorage is not available');
+      }
+      // 无论localStorage是否可用，都更新缓存
       this.cache[key] = data;
+      console.log('Cache updated successfully');
     } catch (error) {
       console.error(`Error saving to localStorage (${key}):`, error);
     }
@@ -680,6 +707,79 @@ class DataService {
     // 预留接口，后续实现云端同步
     console.log('Syncing data from cloud...');
     return true;
+  }
+
+  /**
+   * 从本地API获取实时基金数据（解决CORS问题）
+   * @param fundCode 基金代码
+   * @returns Promise<FundRealTimeData> 基金实时数据
+   */
+  async fetchFundRealTimeData(fundCode: string): Promise<FundRealTimeData> {
+    try {
+      // 调用本地API路由，避免CORS问题
+      const url = `/api/fund/realtime?code=${fundCode}`;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const fundData = await response.json();
+      
+      return {
+        code: fundData.code,
+        name: fundData.name,
+        netValue: fundData.netValue,
+        estimatedValue: fundData.estimatedValue,
+        changeRate: fundData.changeRate,
+        updateTime: fundData.updateTime
+      };
+    } catch (error) {
+      console.error(`Error fetching real-time fund data for ${fundCode}:`, error);
+      // 出错时返回默认数据
+      return {
+        code: fundCode,
+        name: '未知基金',
+        netValue: 0,
+        estimatedValue: 0,
+        changeRate: 0,
+        updateTime: new Date().toLocaleString()
+      };
+    }
+  }
+
+  /**
+   * 批量从本地API获取实时基金数据（解决CORS问题）
+   * @param fundCodes 基金代码数组
+   * @returns Promise<FundRealTimeData[]> 基金实时数据数组
+   */
+  async fetchBatchFundRealTimeData(fundCodes: string[]): Promise<FundRealTimeData[]> {
+    try {
+      // 批量并行获取多个基金的数据
+      const fundDataPromises = fundCodes.map(code => this.fetchFundRealTimeData(code));
+      const fundDataArray = await Promise.all(fundDataPromises);
+      return fundDataArray;
+    } catch (error) {
+      console.error('Error fetching batch fund real-time data:', error);
+      // 出错时返回空数组
+      return [];
+    }
+  }
+
+  /**
+   * 获取跟踪基金列表
+   * @returns FundRealTimeData[] 跟踪基金列表
+   */
+  getTrackedFunds(): FundRealTimeData[] {
+    return this.readFromStorage<FundRealTimeData[]>(STORAGE_KEYS.TRACKED_FUNDS, []);
+  }
+
+  /**
+   * 保存跟踪基金列表
+   * @param funds 跟踪基金列表
+   */
+  saveTrackedFunds(funds: FundRealTimeData[]): void {
+    this.debouncedSave.trackedFunds(funds);
   }
 
   /**
