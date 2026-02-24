@@ -26,6 +26,13 @@ export default function FundTracker({
   // 排序相关状态
   const [sortField, setSortField] = useState<string | null>('changeRate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  // 用于跟踪最新的 trackedFunds 状态，避免 useEffect 频繁执行
+  const trackedFundsRef = React.useRef<FundRealTimeData[]>(trackedFunds);
+  
+  // 当 trackedFunds 状态更新时，同步更新 ref
+  useEffect(() => {
+    trackedFundsRef.current = trackedFunds;
+  }, [trackedFunds]);
 
   // 从 dataService 加载跟踪基金数据
   useEffect(() => {
@@ -66,7 +73,8 @@ export default function FundTracker({
 
   // 定时刷新逻辑
   useEffect(() => {
-    let intervalId: NodeJS.Timeout | null = null;
+    let refreshIntervalId: NodeJS.Timeout | null = null;
+    let checkIntervalId: NodeJS.Timeout | null = null;
 
     // 检查是否在交易时间内（上午10点到下午3点）
     const isInTradingHours = () => {
@@ -77,35 +85,37 @@ export default function FundTracker({
 
     // 自动刷新函数
     const autoRefresh = async () => {
-      if (trackedFunds.length > 0 && isInTradingHours()) {
-        try {
-          // 批量刷新所有跟踪基金的数据
-          const fundCodes = trackedFunds.map(fund => fund.code);
-          const updatedFunds = await dataService.fetchBatchFundRealTimeData(fundCodes);
-          setTrackedFunds(updatedFunds);
-          setLastRefreshTime(new Date().toLocaleTimeString());
-        } catch (error) {
-          console.error('自动刷新基金数据失败:', error);
-        }
+      // 使用 ref 获取最新的 trackedFunds 状态
+      const currentTrackedFunds = trackedFundsRef.current;
+      if (currentTrackedFunds.length === 0 || !isInTradingHours()) {
+        return;
+      }
+
+      try {
+        // 批量刷新所有跟踪基金的数据
+        const fundCodes = currentTrackedFunds.map(fund => fund.code);
+        const updatedFunds = await dataService.fetchBatchFundRealTimeData(fundCodes);
+        setTrackedFunds(updatedFunds);
+        setLastRefreshTime(new Date().toLocaleTimeString());
+      } catch (error) {
+        console.error('自动刷新基金数据失败:', error);
       }
     };
 
     // 检查是否需要启用自动刷新
     const checkAutoRefresh = () => {
-      const enabled = trackedFunds.length > 0 && isInTradingHours();
+      // 使用 ref 获取最新的 trackedFunds 状态
+      const currentTrackedFunds = trackedFundsRef.current;
+      const enabled = currentTrackedFunds.length > 0 && isInTradingHours();
       setAutoRefreshEnabled(enabled);
 
-      if (enabled) {
-        // 立即执行一次刷新
-        autoRefresh();
+      if (enabled && !refreshIntervalId) {
         // 设置定时器，每5分钟刷新一次
-        intervalId = setInterval(autoRefresh, 5 * 60 * 1000);
-      } else {
+        refreshIntervalId = setInterval(autoRefresh, 5 * 60 * 1000);
+      } else if (!enabled && refreshIntervalId) {
         // 清除定时器
-        if (intervalId) {
-          clearInterval(intervalId);
-          intervalId = null;
-        }
+        clearInterval(refreshIntervalId);
+        refreshIntervalId = null;
       }
     };
 
@@ -113,16 +123,18 @@ export default function FundTracker({
     checkAutoRefresh();
 
     // 每分钟检查一次交易时间状态
-    const checkIntervalId = setInterval(checkAutoRefresh, 60 * 1000);
+    checkIntervalId = setInterval(checkAutoRefresh, 60 * 1000);
 
     // 清理函数
     return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
+      if (refreshIntervalId) {
+        clearInterval(refreshIntervalId);
       }
-      clearInterval(checkIntervalId);
+      if (checkIntervalId) {
+        clearInterval(checkIntervalId);
+      }
     };
-  }, [trackedFunds]);
+  }, []);
 
   // 手动刷新基金数据
   const handleManualRefresh = async () => {

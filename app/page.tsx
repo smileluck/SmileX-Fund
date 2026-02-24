@@ -668,7 +668,7 @@ export default function HomePage() {
           <div className="flex items-center gap-2">
             <BarChart2 className="h-6 w-6 text-blue-600 dark:text-blue-400" />
             <h1 className="text-xl font-bold text-zinc-900 dark:text-white">
-              SmileX 基金估值
+              SmileX
             </h1>
           </div>
           
