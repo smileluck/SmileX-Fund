@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Trash2, RefreshCw } from 'lucide-react';
+import { Trash2, RefreshCw, Download } from 'lucide-react';
 import dataService from '@/lib/dataService';
 import { FundRealTimeData } from '@/lib/dataService';
 
@@ -158,6 +158,23 @@ export default function FundTracker({
     }
   };
 
+  // 单独刷新单个基金数据
+  const handleRefreshSingleFund = async (code: string) => {
+    try {
+      // 刷新单个基金的数据
+      const updatedFund = await dataService.fetchFundRealTimeData(code);
+      // 根据基金代码更新数据，确保更新正确的基金
+      const updatedFunds = trackedFunds.map(fund => 
+        fund.code === code ? updatedFund : fund
+      );
+      setTrackedFunds(updatedFunds);
+      setLastRefreshTime(new Date().toLocaleTimeString());
+    } catch (error) {
+      console.error(`刷新基金 ${code} 数据失败:`, error);
+      alert(`刷新基金 ${code} 数据失败，请稍后重试`);
+    }
+  };
+
   // 添加基金到跟踪列表
   const handleAddTrackedFund = async () => {
     if (!fundCodeInput.trim()) return;
@@ -226,8 +243,60 @@ export default function FundTracker({
   };
 
   // 删除跟踪基金
-  const handleRemoveTrackedFund = (index: number) => {
-    setTrackedFunds(trackedFunds.filter((_, i) => i !== index));
+  const handleRemoveTrackedFund = (code: string) => {
+    setTrackedFunds(trackedFunds.filter(fund => fund.code !== code));
+  };
+
+  // 导出基金列表为CSV格式
+  const handleExportCSV = () => {
+    if (trackedFunds.length === 0) {
+      alert('暂无跟踪基金可导出');
+      return;
+    }
+
+    // 生成CSV内容
+    const header = '基金代码,基金名称\n';
+    const rows = trackedFunds.map(fund => `${fund.code},${fund.name}`).join('\n');
+    const csvContent = header + rows;
+
+    // 创建Blob对象并下载
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `funds_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // 显示成功提示
+    alert('基金列表已成功导出为CSV文件');
+  };
+
+  // 导出基金列表为TXT格式
+  const handleExportTXT = () => {
+    if (trackedFunds.length === 0) {
+      alert('暂无跟踪基金可导出');
+      return;
+    }
+
+    // 生成TXT内容
+    const content = trackedFunds.map(fund => `${fund.code} ${fund.name}`).join('\n');
+
+    // 创建Blob对象并下载
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `funds_${new Date().toISOString().slice(0, 10)}.txt`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // 显示成功提示
+    alert('基金列表已成功导出为TXT文件');
   };
 
   // 处理排序
@@ -312,9 +381,32 @@ export default function FundTracker({
           </p>
         )}
       </div>
-      
+
+      {/* 工具箱模块 */}
+      <div className="mt-4 bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800 p-4">
+        <h4 className="text-md font-semibold text-zinc-900 dark:text-white mb-3">工具箱</h4>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={handleExportCSV}
+            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md flex items-center gap-2"
+            disabled={trackedFunds.length === 0}
+          >
+            <Download className="h-4 w-4" />
+            导出CSV
+          </button>
+          <button
+            onClick={handleExportTXT}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md flex items-center gap-2"
+            disabled={trackedFunds.length === 0}
+          >
+            <Download className="h-4 w-4" />
+            导出TXT
+          </button>
+        </div>
+      </div>
+
       {/* 基金跟踪列表 */}
-      <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800">
+      <div className="mt-6 bg-white dark:bg-zinc-900 rounded-lg shadow-sm border border-zinc-200 dark:border-zinc-800">
         {trackedFunds.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left">
@@ -349,12 +441,22 @@ export default function FundTracker({
                     </td>
                     <td className="py-3 px-4 text-sm text-zinc-600 dark:text-zinc-400">{fund.updateTime}</td>
                     <td className="py-3 px-4 text-sm">
-                      <button
-                        onClick={() => handleRemoveTrackedFund(index)}
-                        className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleRefreshSingleFund(fund.code)}
+                          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                          title="刷新"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleRemoveTrackedFund(fund.code)}
+                          className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300"
+                          title="删除"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
