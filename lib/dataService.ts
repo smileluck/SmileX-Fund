@@ -24,6 +24,16 @@ export interface FundValuation {
   updateTime: string;     // 更新时间
 }
 
+// 基金实时数据接口（从外部API获取）
+export interface FundRealTimeData {
+  code: string;          // 基金代码
+  name: string;          // 基金名称
+  netValue: number;       // 最新净值
+  estimatedValue: number; // 估算净值
+  changeRate: number;     // 涨跌幅
+  updateTime: string;     // 更新时间
+}
+
 // 基金历史走势接口
 export interface FundHistory {
   code: string;          // 基金代码
@@ -168,7 +178,8 @@ const STORAGE_KEYS = {
   GOLD_RECYCLE_PRICES: `${STORAGE_PREFIX}:goldRecyclePrices`,
   BRAND_PRECIOUS_METAL_PRICES: `${STORAGE_PREFIX}:brandPreciousMetalPrices`,
   PRECIOUS_METAL_SYNC_TIME: `${STORAGE_PREFIX}:preciousMetalSyncTime`,
-  FUND_HOLDINGS_SUMMARY: `${STORAGE_PREFIX}:fundHoldingsSummary`
+  FUND_HOLDINGS_SUMMARY: `${STORAGE_PREFIX}:fundHoldingsSummary`,
+  TRACKED_FUNDS: `${STORAGE_PREFIX}:trackedFunds`
 };
 
 // 防抖函数
@@ -190,7 +201,8 @@ class DataService {
     this.debouncedSave = {
       userHoldings: debounce(this.saveToStorage.bind(this, STORAGE_KEYS.USER_HOLDINGS), 500),
       wallets: debounce(this.saveToStorage.bind(this, STORAGE_KEYS.WALLETS), 500),
-      settings: debounce(this.saveToStorage.bind(this, STORAGE_KEYS.SETTINGS), 500)
+      settings: debounce(this.saveToStorage.bind(this, STORAGE_KEYS.SETTINGS), 500),
+      trackedFunds: debounce(this.saveToStorage.bind(this, STORAGE_KEYS.TRACKED_FUNDS), 500)
     };
   }
 
@@ -202,17 +214,20 @@ class DataService {
    */
   private readFromStorage<T>(key: string, defaultValue: T): T {
     try {
-      // 检查缓存
-      if (this.cache[key]) {
+      // 检查缓存是否存在（使用key in this.cache确保空数组也能被正确处理）
+      if (key in this.cache) {
         return this.cache[key];
       }
 
-      const item = localStorage.getItem(key);
-      if (item) {
-        const parsed = JSON.parse(item);
-        // 更新缓存
-        this.cache[key] = parsed;
-        return parsed;
+      // 检查localStorage是否可用
+      if (typeof localStorage !== 'undefined') {
+        const item = localStorage.getItem(key);
+        if (item) {
+          const parsed = JSON.parse(item);
+          // 更新缓存
+          this.cache[key] = parsed;
+          return parsed;
+        }
       }
     } catch (error) {
       console.error(`Error reading from localStorage (${key}):`, error);
@@ -227,8 +242,11 @@ class DataService {
    */
   private saveToStorage(key: string, data: any): void {
     try {
-      localStorage.setItem(key, JSON.stringify(data));
-      // 更新缓存
+      // 检查localStorage是否可用
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(key, JSON.stringify(data));
+      }
+      // 无论localStorage是否可用，都更新缓存
       this.cache[key] = data;
     } catch (error) {
       console.error(`Error saving to localStorage (${key}):`, error);
@@ -683,6 +701,79 @@ class DataService {
   }
 
   /**
+   * 从本地API获取实时基金数据（解决CORS问题）
+   * @param fundCode 基金代码
+   * @returns Promise<FundRealTimeData> 基金实时数据
+   */
+  async fetchFundRealTimeData(fundCode: string): Promise<FundRealTimeData> {
+    try {
+      // 调用本地API路由，避免CORS问题
+      const url = `/api/fund/realtime?code=${fundCode}`;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const fundData = await response.json();
+      
+      return {
+        code: fundData.code,
+        name: fundData.name,
+        netValue: fundData.netValue,
+        estimatedValue: fundData.estimatedValue,
+        changeRate: fundData.changeRate,
+        updateTime: fundData.updateTime
+      };
+    } catch (error) {
+      console.error(`Error fetching real-time fund data for ${fundCode}:`, error);
+      // 出错时返回默认数据
+      return {
+        code: fundCode,
+        name: '未知基金',
+        netValue: 0,
+        estimatedValue: 0,
+        changeRate: 0,
+        updateTime: new Date().toLocaleString()
+      };
+    }
+  }
+
+  /**
+   * 批量从本地API获取实时基金数据（解决CORS问题）
+   * @param fundCodes 基金代码数组
+   * @returns Promise<FundRealTimeData[]> 基金实时数据数组
+   */
+  async fetchBatchFundRealTimeData(fundCodes: string[]): Promise<FundRealTimeData[]> {
+    try {
+      // 批量并行获取多个基金的数据
+      const fundDataPromises = fundCodes.map(code => this.fetchFundRealTimeData(code));
+      const fundDataArray = await Promise.all(fundDataPromises);
+      return fundDataArray;
+    } catch (error) {
+      console.error('Error fetching batch fund real-time data:', error);
+      // 出错时返回空数组
+      return [];
+    }
+  }
+
+  /**
+   * 获取跟踪基金列表
+   * @returns FundRealTimeData[] 跟踪基金列表
+   */
+  getTrackedFunds(): FundRealTimeData[] {
+    return this.readFromStorage<FundRealTimeData[]>(STORAGE_KEYS.TRACKED_FUNDS, []);
+  }
+
+  /**
+   * 保存跟踪基金列表
+   * @param funds 跟踪基金列表
+   */
+  saveTrackedFunds(funds: FundRealTimeData[]): void {
+    this.debouncedSave.trackedFunds(funds);
+  }
+
+  /**
    * 检查数据同步状态
    * @returns Promise<boolean> 是否需要同步
    */
@@ -771,6 +862,50 @@ class DataService {
   }
 
   /**
+   * 从API获取市场指数实时数据
+   * @returns Promise<MarketIndex[]> 市场指数数组
+   */
+  async fetchMarketIndicesFromAPI(): Promise<MarketIndex[]> {
+    try {
+      // 调用本地API路由获取实时数据（通过代理解决CORS问题）
+      const response = await fetch('/api/market/indices');
+
+      if (!response.ok) {
+        throw new Error(`API请求失败: ${response.status}`);
+      }
+
+      const apiResponse = await response.json();
+
+      if (apiResponse.success && apiResponse.data) {
+        // 转换数据格式为 MarketIndex 接口
+        const marketIndices: MarketIndex[] = apiResponse.data.map((item: any) => ({
+          name: item.name,
+          value: item.value,
+          change: item.change,
+          isUp: item.isUp
+        }));
+
+        // 保存到本地存储和缓存
+        this.saveMarketIndices(marketIndices);
+
+        // 保存同步时间
+        const syncTime = new Date().toLocaleString('zh-CN');
+        localStorage.setItem(`${STORAGE_PREFIX}:marketSyncTime`, syncTime);
+
+        console.log(`✅ 市场指数数据更新成功，共 ${marketIndices.length} 个指数，时间: ${syncTime}`);
+
+        return marketIndices;
+      }
+
+      throw new Error('API返回数据格式错误');
+    } catch (error) {
+      console.error('❌ 获取市场指数实时数据失败:', error);
+      // 出错时返回本地存储的数据或默认值
+      return this.getMarketIndices();
+    }
+  }
+
+  /**
    * 获取贵金属数据同步时间
    * @returns 同步时间字符串或null
    */
@@ -794,13 +929,13 @@ class DataService {
     try {
       // 调用贵金属API（通过代理路由解决CORS问题）
       const response = await fetch('/api/precious-metal');
-      
+
       if (!response.ok) {
         throw new Error(`API请求失败: ${response.status}`);
       }
-      
+
       const apiResponse = await response.json();
-      
+
       // 保存完整的贵金属数据
       if (apiResponse.data) {
         // 保存银行投资金条价格
@@ -812,7 +947,7 @@ class DataService {
           }));
           this.saveBankGoldBarPrices(bankGoldBarPrices);
         }
-        
+
         // 保存贵金属回收价格
         if (apiResponse.data.gold_recycle_price) {
           const goldRecyclePrices = apiResponse.data.gold_recycle_price.map((item: any) => ({
@@ -823,7 +958,7 @@ class DataService {
           }));
           this.saveGoldRecyclePrices(goldRecyclePrices);
         }
-        
+
         // 保存品牌贵金属价格
         if (apiResponse.data.precious_metal_price) {
           const brandPreciousMetalPrices = apiResponse.data.precious_metal_price.map((item: any) => ({
@@ -837,39 +972,62 @@ class DataService {
           this.saveBrandPreciousMetalPrices(brandPreciousMetalPrices);
         }
       }
-      
+
       // 转换数据格式，确保符合PreciousMetal接口
       const preciousMetals: PreciousMetal[] = [];
-      
+
+      // 获取上次保存的价格，用于计算涨跌幅
+      const previousPrices = this.readFromStorage<Record<string, number>>(`${STORAGE_PREFIX}:previousPreciousMetalPrices`, {});
+
       // 处理黄金数据
       if (apiResponse.data && apiResponse.data.precious_metal_price) {
         // 获取第一个品牌的黄金价格
         const firstBrand = apiResponse.data.precious_metal_price[0];
         if (firstBrand && firstBrand.gold_price) {
+          const currentPrice = parseFloat(firstBrand.gold_price);
+          const previousPrice = previousPrices['黄金'] || currentPrice;
+
+          // 计算涨跌幅
+          const changePercent = ((currentPrice - previousPrice) / previousPrice) * 100;
+          const change = `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`;
+
           preciousMetals.push({
             name: '黄金',
             value: firstBrand.gold_price,
-            change: '+0.00%', // API未提供涨跌幅，使用默认值
-            isUp: true,
+            change: change,
+            isUp: changePercent >= 0,
             unit: '元/克'
           });
+
+          // 更新上次价格
+          previousPrices['黄金'] = currentPrice;
         }
       }
-      
+
       // 处理白银数据
       // 从黄金回收价格中获取白银价格的近似值
       if (apiResponse.data && apiResponse.data.gold_recycle_price) {
-        const silverItem = apiResponse.data.gold_recycle_price.find((item: any) => 
+        const silverItem = apiResponse.data.gold_recycle_price.find((item: any) =>
           item.gold_type.includes('银')
         );
         if (silverItem && silverItem.recycle_price) {
+          const currentPrice = parseFloat(silverItem.recycle_price);
+          const previousPrice = previousPrices['白银'] || currentPrice;
+
+          // 计算涨跌幅
+          const changePercent = ((currentPrice - previousPrice) / previousPrice) * 100;
+          const change = `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`;
+
           preciousMetals.push({
             name: '白银',
             value: silverItem.recycle_price,
-            change: '-0.00%', // API未提供涨跌幅，使用默认值
-            isUp: false,
+            change: change,
+            isUp: changePercent >= 0,
             unit: '元/克'
           });
+
+          // 更新上次价格
+          previousPrices['白银'] = currentPrice;
         } else {
           // 如果没有白银数据，使用默认值
           preciousMetals.push({
@@ -881,7 +1039,10 @@ class DataService {
           });
         }
       }
-      
+
+      // 保存当前价格作为下次计算的基准
+      this.saveToStorage(`${STORAGE_PREFIX}:previousPreciousMetalPrices`, previousPrices);
+
       // 确保至少返回黄金和白银数据
       if (preciousMetals.length === 0) {
         // 使用默认数据

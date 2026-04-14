@@ -1,8 +1,13 @@
 import type { NextConfig } from "next";
+const path = require('path')
 
 const nextConfig: NextConfig = {
   /* config options here */
-  allowedDevOrigins: ['http://localhost:3000', "http://fund.zsmile.top"],
+  allowedDevOrigins: ['localhost', "192.168.0.82", "http://fund.zsmile.top"],
+
+  turbopack: {
+    root: path.join(__dirname, '..'),
+  },
 };
 
 export default nextConfig;

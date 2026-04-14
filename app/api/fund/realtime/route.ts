@@ -1,0 +1,121 @@
+// 基金实时数据 API 路由
+// 用于代理基金实时数据请求，解决 CORS 问题
+import { NextRequest, NextResponse } from 'next/server';
+
+/**
+ * 验证基金代码格式
+ * @param fundCode 基金代码
+ * @returns 是否为有效的基金代码
+ */
+function validateFundCode(fundCode: string): boolean {
+  // 基金代码通常为6位数字
+  return /^\d{6}$/.test(fundCode);
+}
+
+/**
+ * 处理基金实时数据请求
+ * @param request 请求对象
+ * @returns 响应对象
+ */
+export async function GET(request: NextRequest) {
+  try {
+    // 从查询参数中获取基金代码
+    const fundCode = request.nextUrl.searchParams.get('code');
+    
+    // 验证基金代码
+    if (!fundCode || !validateFundCode(fundCode)) {
+      return NextResponse.json(
+        { error: '无效的基金代码格式' },
+        { status: 400 }
+      );
+    }
+    
+    // 构建API请求URL
+    const url = `https://fundgz.1234567.com.cn/js/${fundCode}.js`;
+    
+    // 发送请求（带指数退避重试机制）
+    const maxRetries = 3;
+    const baseDelay = 1000;
+    let response: Response | null = null;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+        
+        response = await fetch(url, {
+          signal: controller.signal,
+          headers: {
+            'Accept': '*/*',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          }
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          break;
+        } else if (attempt === maxRetries - 1) {
+          return NextResponse.json(
+            { error: `HTTP error! status: ${response.status} (已重试${maxRetries}次)` },
+            { status: 500 }
+          );
+        }
+      } catch (error) {
+        if (attempt === maxRetries - 1) {
+          throw error;
+        }
+        // 指数退避等待
+        await new Promise(resolve => setTimeout(resolve, baseDelay * Math.pow(2, attempt)));
+      }
+    }
+    
+    // 检查响应状态
+    if (!response.ok) {
+      return NextResponse.json(
+        { error: `HTTP error! status: ${response.status}` },
+        { status: 500 }
+      );
+    }
+    
+    // 解析响应数据
+    const text = await response.text();
+    // 移除JSONP包装
+    const jsonpMatch = text.match(/^jsonpgz\((.*)\);$/);
+    if (!jsonpMatch) {
+      return NextResponse.json(
+        { error: '无效的响应格式' },
+        { status: 500 }
+      );
+    }
+    
+    // 解析JSON数据，添加错误处理防止格式异常导致服务器崩溃
+    let fundData: Record<string, string>;
+    try {
+      fundData = JSON.parse(jsonpMatch[1]);
+    } catch (parseError) {
+      return NextResponse.json(
+        { error: '数据解析失败，API返回格式异常' },
+        { status: 500 }
+      );
+    }
+    
+    // 构建返回数据
+    const result = {
+      code: fundData.fundcode,
+      name: fundData.name,
+      netValue: parseFloat(fundData.dwjz),
+      estimatedValue: parseFloat(fundData.gsz),
+      changeRate: parseFloat(fundData.gszzl),
+      updateTime: fundData.gztime
+    };
+    
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error('获取基金实时数据失败:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : '未知错误' },
+      { status: 500 }
+    );
+  }
+}

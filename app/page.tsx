@@ -131,6 +131,19 @@ export default function HomePage() {
 
   // 如需在同一页面内同步设置变化，请在修改localStorage后直接更新对应的状态
 
+  // 从API获取市场指数实时数据
+  const fetchMarketIndices = async () => {
+    try {
+      const indices = await dataService.fetchMarketIndicesFromAPI();
+      setMarketIndices(indices);
+    } catch (error) {
+      console.error('Error fetching market indices:', error);
+      // 出错时使用本地存储的数据
+      const localIndices = dataService.getMarketIndices();
+      setMarketIndices(localIndices);
+    }
+  };
+
   // 从API获取贵金属数据
   const fetchPreciousMetals = async () => {
     try {
@@ -207,9 +220,10 @@ export default function HomePage() {
         // 加载市场数据
         const allFunds = dataService.getAllFunds();
         setFunds(allFunds);
-        const indices = dataService.getMarketIndices();
-        setMarketIndices(indices);
-        
+
+        // 获取市场指数实时数据（从API）
+        fetchMarketIndices();
+
         // 获取贵金属数据（从API）
         fetchPreciousMetals();
         // 获取完整的贵金属数据（包括银行金条、回收价格和品牌价格）
@@ -243,18 +257,24 @@ export default function HomePage() {
     loadInitialData();
   }, []);
 
-  // 设置定时器，每隔1分钟获取一次贵金属数据
+  // 设置定时器，每隔1分钟获取一次市场数据（市场指数和贵金属）
   useEffect(() => {
     // 初始加载
+    fetchMarketIndices();
     fetchPreciousMetals();
     fetchCompletePreciousMetalData();
-    
-    // 设置定时器
+
+    // 设置定时器 - 60秒刷新一次
     const intervalId = setInterval(() => {
+      // 仅在开发环境输出调试日志
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔄 定时刷新市场数据...');
+      }
+      fetchMarketIndices();
       fetchPreciousMetals();
       fetchCompletePreciousMetalData();
     }, 60000); // 60秒 = 1分钟
-    
+
     // 清理函数
     return () => {
       clearInterval(intervalId);
@@ -668,7 +688,7 @@ export default function HomePage() {
           <div className="flex items-center gap-2">
             <BarChart2 className="h-6 w-6 text-blue-600 dark:text-blue-400" />
             <h1 className="text-xl font-bold text-zinc-900 dark:text-white">
-              SmileX 基金估值
+              SmileX
             </h1>
           </div>
           
