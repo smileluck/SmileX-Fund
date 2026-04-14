@@ -33,19 +33,42 @@ export async function GET(request: NextRequest) {
     // 构建API请求URL
     const url = `https://fundgz.1234567.com.cn/js/${fundCode}.js`;
     
-    // 发送请求
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+    // 发送请求（带指数退避重试机制）
+    const maxRetries = 3;
+    const baseDelay = 1000;
+    let response: Response | null = null;
     
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        'Accept': '*/*',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10秒超时
+        
+        response = await fetch(url, {
+          signal: controller.signal,
+          headers: {
+            'Accept': '*/*',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          }
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          break;
+        } else if (attempt === maxRetries - 1) {
+          return NextResponse.json(
+            { error: `HTTP error! status: ${response.status} (已重试${maxRetries}次)` },
+            { status: 500 }
+          );
+        }
+      } catch (error) {
+        if (attempt === maxRetries - 1) {
+          throw error;
+        }
+        // 指数退避等待
+        await new Promise(resolve => setTimeout(resolve, baseDelay * Math.pow(2, attempt)));
       }
-    });
-    
-    clearTimeout(timeoutId);
+    }
     
     // 检查响应状态
     if (!response.ok) {

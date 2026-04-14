@@ -143,9 +143,11 @@ export default function FundTracker({
     return () => {
       if (refreshIntervalId) {
         clearInterval(refreshIntervalId);
+        refreshIntervalId = null;
       }
       if (checkIntervalId) {
         clearInterval(checkIntervalId);
+        checkIntervalId = null;
       }
     };
   }, []);

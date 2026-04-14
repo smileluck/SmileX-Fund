@@ -242,21 +242,12 @@ class DataService {
    */
   private saveToStorage(key: string, data: any): void {
     try {
-      console.log(`Attempting to save to localStorage (${key}):`, data);
       // 检查localStorage是否可用
       if (typeof localStorage !== 'undefined') {
-        console.log('localStorage is available');
         localStorage.setItem(key, JSON.stringify(data));
-        console.log('Data saved to localStorage successfully');
-        // 验证保存是否成功
-        const savedData = localStorage.getItem(key);
-        console.log('Data retrieved from localStorage:', savedData);
-      } else {
-        console.log('localStorage is not available');
       }
       // 无论localStorage是否可用，都更新缓存
       this.cache[key] = data;
-      console.log('Cache updated successfully');
     } catch (error) {
       console.error(`Error saving to localStorage (${key}):`, error);
     }

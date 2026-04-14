@@ -405,7 +405,7 @@ export default function BatchAddHoldingModal({ isOpen, onClose, onBatchAddHoldin
                         <td className="px-3 py-3 whitespace-nowrap">
                           <input
                             type="number"
-                            value={item.holdingProfit}
+                            value={item.holdingProfit ?? 0}
                             onChange={(e) => handleUpdateItem(index, 'holdingProfit', e.target.value)}
                             placeholder="0"
                             step="0.01"
