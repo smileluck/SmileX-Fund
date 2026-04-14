@@ -89,7 +89,16 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    const fundData = JSON.parse(jsonpMatch[1]);
+    // 解析JSON数据，添加错误处理防止格式异常导致服务器崩溃
+    let fundData: Record<string, string>;
+    try {
+      fundData = JSON.parse(jsonpMatch[1]);
+    } catch (parseError) {
+      return NextResponse.json(
+        { error: '数据解析失败，API返回格式异常' },
+        { status: 500 }
+      );
+    }
     
     // 构建返回数据
     const result = {

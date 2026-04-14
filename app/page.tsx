@@ -266,7 +266,10 @@ export default function HomePage() {
 
     // 设置定时器 - 60秒刷新一次
     const intervalId = setInterval(() => {
-      console.log('🔄 定时刷新市场数据...');
+      // 仅在开发环境输出调试日志
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔄 定时刷新市场数据...');
+      }
       fetchMarketIndices();
       fetchPreciousMetals();
       fetchCompletePreciousMetalData();
