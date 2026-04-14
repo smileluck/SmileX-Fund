@@ -95,8 +95,22 @@ export default function FundTracker({
         // 批量刷新所有跟踪基金的数据
         const fundCodes = currentTrackedFunds.map(fund => fund.code);
         const updatedFunds = await dataService.fetchBatchFundRealTimeData(fundCodes);
-        setTrackedFunds(updatedFunds);
-        setLastRefreshTime(new Date().toLocaleTimeString());
+        
+        // 过滤掉请求失败的基金数据（name 为 '未知基金' 的数据）
+        const successfulFunds = updatedFunds.filter(fund => fund.name !== '未知基金');
+        
+        // 只有当获取到有效数据时才更新状态
+        if (successfulFunds.length > 0) {
+          console.log('自动刷新基金数据成功:', successfulFunds);
+          // 将请求成功的基金数据更新到现有数据中
+          const mergedFunds = currentTrackedFunds.map(existingFund => {
+            const updatedFund = successfulFunds.find(fund => fund.code === existingFund.code);
+            return updatedFund || existingFund;
+          });
+          
+          setTrackedFunds(mergedFunds);
+          setLastRefreshTime(new Date().toLocaleTimeString());
+        }
       } catch (error) {
         console.error('自动刷新基金数据失败:', error);
       }
@@ -148,8 +162,24 @@ export default function FundTracker({
       // 批量刷新所有跟踪基金的数据
       const fundCodes = trackedFunds.map(fund => fund.code);
       const updatedFunds = await dataService.fetchBatchFundRealTimeData(fundCodes);
-      setTrackedFunds(updatedFunds);
-      setLastRefreshTime(new Date().toLocaleTimeString());
+      
+      // 过滤掉请求失败的基金数据（name 为 '未知基金' 的数据）
+      const successfulFunds = updatedFunds.filter(fund => fund.name !== '未知基金');
+      
+      // 只有当获取到有效数据时才更新状态
+      if (successfulFunds.length > 0) {
+        console.log('手动刷新基金数据成功:', successfulFunds);
+        // 将请求成功的基金数据更新到现有数据中
+        const mergedFunds = trackedFunds.map(existingFund => {
+          const updatedFund = successfulFunds.find(fund => fund.code === existingFund.code);
+          return updatedFund || existingFund;
+        });
+        
+        setTrackedFunds(mergedFunds);
+        setLastRefreshTime(new Date().toLocaleTimeString());
+      } else {
+        alert('刷新基金数据失败，请稍后重试');
+      }
     } catch (error) {
       console.error('刷新基金数据失败:', error);
       alert('刷新基金数据失败，请稍后重试');
@@ -163,12 +193,17 @@ export default function FundTracker({
     try {
       // 刷新单个基金的数据
       const updatedFund = await dataService.fetchFundRealTimeData(code);
-      // 根据基金代码更新数据，确保更新正确的基金
-      const updatedFunds = trackedFunds.map(fund => 
-        fund.code === code ? updatedFund : fund
-      );
-      setTrackedFunds(updatedFunds);
-      setLastRefreshTime(new Date().toLocaleTimeString());
+      // 只有当获取到有效数据时才更新状态
+      if (updatedFund && updatedFund.name !== '未知基金') {
+        // 根据基金代码更新数据，确保更新正确的基金
+        const updatedFunds = trackedFunds.map(fund => 
+          fund.code === code ? updatedFund : fund
+        );
+        setTrackedFunds(updatedFunds);
+        setLastRefreshTime(new Date().toLocaleTimeString());
+      } else {
+        alert(`刷新基金 ${code} 数据失败，请稍后重试`);
+      }
     } catch (error) {
       console.error(`刷新基金 ${code} 数据失败:`, error);
       alert(`刷新基金 ${code} 数据失败，请稍后重试`);
