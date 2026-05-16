@@ -38,8 +38,7 @@ export default function FundTracker({
   useEffect(() => {
     const loadTrackedFunds = async () => {
       try {
-        // 从 dataService 获取跟踪基金列表
-        const trackedFundsList = dataService.getTrackedFunds();
+        const trackedFundsList = await dataService.getTrackedFunds();
         if (trackedFundsList.length > 0) {
           setTrackedFunds(trackedFundsList);
           setLastRefreshTime(new Date().toLocaleTimeString());
@@ -55,8 +54,7 @@ export default function FundTracker({
   // 当跟踪基金列表变化时，保存到 dataService
   useEffect(() => {
     try {
-      // 保存跟踪基金列表到 dataService
-      dataService.saveTrackedFunds(trackedFunds);
+      dataService.debouncedSaveTrackedFunds(trackedFunds);
     } catch (error) {
       console.error('保存跟踪基金数据失败:', error);
     }

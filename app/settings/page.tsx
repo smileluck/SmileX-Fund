@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Save } from 'lucide-react';
+import dataService from '@/lib/dataService';
 
 /**
  * 设置页面
@@ -16,62 +17,56 @@ export default function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // 从本地存储读取设置
+  // 从 Supabase / localStorage 读取设置
   useEffect(() => {
-    try {
-      // 读取贵金属设置
-      const savedMetalItemsPerRow = localStorage.getItem('metalItemsPerRow');
-      if (savedMetalItemsPerRow) {
-        const parsedValue = parseInt(savedMetalItemsPerRow, 10);
-        if (!isNaN(parsedValue) && parsedValue >= 1 && parsedValue <= 4) {
-          setMetalItemsPerRow(parsedValue);
+    const loadSettings = async () => {
+      try {
+        const settings = await dataService.getSettings();
+        if (settings.metalItemsPerRow) {
+          const v = Number(settings.metalItemsPerRow);
+          if (v >= 1 && v <= 4) setMetalItemsPerRow(v);
         }
-      }
-      
-      // 读取市场设置
-      const savedMarketItemsPerRow = localStorage.getItem('marketItemsPerRow');
-      if (savedMarketItemsPerRow) {
-        const parsedValue = parseInt(savedMarketItemsPerRow, 10);
-        if (!isNaN(parsedValue) && parsedValue >= 1 && parsedValue <= 4) {
-          setMarketItemsPerRow(parsedValue);
+        if (settings.marketItemsPerRow) {
+          const v = Number(settings.marketItemsPerRow);
+          if (v >= 1 && v <= 4) setMarketItemsPerRow(v);
         }
+        if (settings.colorScheme === 'red-up' || settings.colorScheme === 'red-down') {
+          setColorScheme(settings.colorScheme);
+        }
+      } catch (error) {
+        console.error('Error reading settings:', error);
+        setMetalItemsPerRow(2);
+        setMarketItemsPerRow(2);
+        setColorScheme('red-up');
       }
-      
-      // 读取涨跌颜色配置
-      const savedColorScheme = localStorage.getItem('colorScheme');
-      if (savedColorScheme && (savedColorScheme === 'red-up' || savedColorScheme === 'red-down')) {
-        setColorScheme(savedColorScheme as 'red-up' | 'red-down');
-      }
-    } catch (error) {
-      console.error('Error reading settings from localStorage:', error);
-      // 出错时使用默认值
-      setMetalItemsPerRow(2);
-      setMarketItemsPerRow(2);
-      setColorScheme('red-up');
-    }
+    };
+    loadSettings();
   }, []);
 
   // 处理保存按钮点击
-  const handleSave = () => {
+  const handleSave = async () => {
     try {
       setIsSaving(true);
-      
-      // 确保值在 1-4 之间
+
       const validMetalValue = Math.max(1, Math.min(4, metalItemsPerRow));
       const validMarketValue = Math.max(1, Math.min(4, marketItemsPerRow));
-      
-      // 保存到本地存储
-      localStorage.setItem('metalItemsPerRow', validMetalValue.toString());
-      localStorage.setItem('marketItemsPerRow', validMarketValue.toString());
-      localStorage.setItem('colorScheme', colorScheme);
-      
-      // 显示保存成功提示
+
+      // 保存到 Supabase + localStorage
+      await dataService.saveSettings({
+        metalItemsPerRow: validMetalValue,
+        marketItemsPerRow: validMarketValue,
+        colorScheme,
+      });
+
+      // 兼容旧逻辑，同时写入独立的 localStorage 键
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('metalItemsPerRow', validMetalValue.toString());
+        localStorage.setItem('marketItemsPerRow', validMarketValue.toString());
+        localStorage.setItem('colorScheme', colorScheme);
+      }
+
       setSaveSuccess(true);
-      
-      // 2秒后隐藏保存成功提示
-      setTimeout(() => {
-        setSaveSuccess(false);
-      }, 2000);
+      setTimeout(() => setSaveSuccess(false), 2000);
     } catch (error) {
       console.error('Error saving settings:', error);
     } finally {

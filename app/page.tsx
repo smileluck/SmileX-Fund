@@ -45,83 +45,61 @@ export default function HomePage() {
   // 加载状态
   const [isLoading, setIsLoading] = useState(false);
 
-  // 从本地存储读取设置
+  // 从 Supabase / localStorage 读取设置
   useEffect(() => {
-    try {
-      // 读取贵金属设置
-      const savedItemsPerRow = localStorage.getItem('metalItemsPerRow');
-      if (savedItemsPerRow) {
-        const parsedValue = parseInt(savedItemsPerRow, 10);
-        if (!isNaN(parsedValue) && parsedValue >= 1 && parsedValue <= 4) {
-          setItemsPerRow(parsedValue);
+    const loadSettings = async () => {
+      try {
+        const settings = await dataService.getSettings();
+        if (settings.metalItemsPerRow) {
+          const v = Number(settings.metalItemsPerRow);
+          if (v >= 1 && v <= 4) setItemsPerRow(v);
         }
-      }
-      
-      // 读取市场设置
-      const savedMarketItemsPerRow = localStorage.getItem('marketItemsPerRow');
-      if (savedMarketItemsPerRow) {
-        const parsedValue = parseInt(savedMarketItemsPerRow, 10);
-        if (!isNaN(parsedValue) && parsedValue >= 1 && parsedValue <= 4) {
-          setMarketItemsPerRow(parsedValue);
+        if (settings.marketItemsPerRow) {
+          const v = Number(settings.marketItemsPerRow);
+          if (v >= 1 && v <= 4) setMarketItemsPerRow(v);
         }
+        if (settings.colorScheme === 'red-up' || settings.colorScheme === 'red-down') {
+          setColorScheme(settings.colorScheme);
+        }
+      } catch (error) {
+        console.error('Error reading settings:', error);
       }
-      
-      // 读取涨跌颜色配置
-      const savedColorScheme = localStorage.getItem('colorScheme');
-      if (savedColorScheme && (savedColorScheme === 'red-up' || savedColorScheme === 'red-down')) {
-        setColorScheme(savedColorScheme as 'red-up' | 'red-down');
-      }
-    } catch (error) {
-      console.error('Error reading settings from localStorage:', error);
-      // 出错时使用默认值，但不保存到本地存储
-    }
+    };
+    loadSettings();
   }, []);
 
   // 移除自动保存设置的逻辑，只在设置页面保存
   // 这样可以避免在主页面初始化时覆盖本地存储中的值
 
-  // 监听本地存储变化，实现设置自动同步
+  // 定时从 Supabase 刷新设置（轻量读取）
   useEffect(() => {
-    const handleStorageChange = (event: StorageEvent) => {
-      // 监听贵金属设置变化
-      if (event.key === 'metalItemsPerRow' && event.newValue) {
-        const parsedValue = parseInt(event.newValue, 10);
-        if (!isNaN(parsedValue) && parsedValue >= 1 && parsedValue <= 4) {
-          setItemsPerRow(parsedValue);
+    const intervalId = setInterval(async () => {
+      try {
+        const settings = await dataService.getSettings();
+        if (settings.metalItemsPerRow) {
+          const v = Number(settings.metalItemsPerRow);
+          if (v >= 1 && v <= 4) setItemsPerRow(v);
         }
-      }
-      
-      // 监听市场设置变化
-      if (event.key === 'marketItemsPerRow' && event.newValue) {
-        const parsedValue = parseInt(event.newValue, 10);
-        if (!isNaN(parsedValue) && parsedValue >= 1 && parsedValue <= 4) {
-          setMarketItemsPerRow(parsedValue);
+        if (settings.marketItemsPerRow) {
+          const v = Number(settings.marketItemsPerRow);
+          if (v >= 1 && v <= 4) setMarketItemsPerRow(v);
         }
-      }
-      
-      // 监听涨跌颜色配置变化
-      if (event.key === 'colorScheme' && event.newValue && (event.newValue === 'red-up' || event.newValue === 'red-down')) {
-        setColorScheme(event.newValue as 'red-up' | 'red-down');
-      }
-    };
-
-    // 添加存储事件监听器
-    window.addEventListener('storage', handleStorageChange);
-
-    // 清理函数
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-    };
+        if (settings.colorScheme === 'red-up' || settings.colorScheme === 'red-down') {
+          setColorScheme(settings.colorScheme);
+        }
+      } catch {}
+    }, 60000);
+    return () => clearInterval(intervalId);
   }, []);
 
   // 监听用户持仓变化并自动保存
   useEffect(() => {
-    dataService.saveUserHoldings(userHoldings);
+    dataService.debouncedSaveUserHoldings(userHoldings);
   }, [userHoldings]);
 
   // 监听钱包变化并自动保存
   useEffect(() => {
-    dataService.saveWallets(wallets);
+    dataService.debouncedSaveWallets(wallets);
   }, [wallets]);
 
   // 注意：移除了定期检查本地存储的interval，因为：
@@ -131,154 +109,114 @@ export default function HomePage() {
 
   // 如需在同一页面内同步设置变化，请在修改localStorage后直接更新对应的状态
 
-  // 从API获取市场指数实时数据
+  // 从 Supabase 获取市场指数数据（由后端 cron 写入）
   const fetchMarketIndices = async () => {
     try {
-      const indices = await dataService.fetchMarketIndicesFromAPI();
+      const indices = await dataService.getMarketIndices();
       setMarketIndices(indices);
     } catch (error) {
       console.error('Error fetching market indices:', error);
-      // 出错时使用本地存储的数据
-      const localIndices = dataService.getMarketIndices();
-      setMarketIndices(localIndices);
     }
   };
 
-  // 从API获取贵金属数据
+  // 从 Supabase 获取贵金属数据（由后端 cron 写入）
   const fetchPreciousMetals = async () => {
     try {
       setIsLoading(true);
-      const metals = await dataService.fetchPreciousMetalsFromAPI();
+      const metals = await dataService.getPreciousMetals();
       setPreciousMetals(metals);
     } catch (error) {
       console.error('Error fetching precious metals:', error);
-      // 出错时使用默认数据
       setPreciousMetals([
-        {
-          name: '黄金',
-          value: '412.56',
-          change: '+0.32%',
-          isUp: true,
-          unit: '元/克'
-        },
-        {
-          name: '白银',
-          value: '5.23',
-          change: '-0.15%',
-          isUp: false,
-          unit: '元/克'
-        }
+        { name: '黄金', value: '412.56', change: '+0.32%', isUp: true, unit: '元/克' },
+        { name: '白银', value: '5.23', change: '-0.15%', isUp: false, unit: '元/克' },
       ]);
     } finally {
-      // 更新贵金属同步时间
-      const syncTime = dataService.getPreciousMetalSyncTime();
+      const syncTime = await dataService.getPreciousMetalSyncTime();
       setPreciousMetalSyncTime(syncTime);
       setIsLoading(false);
     }
   };
 
-  // 从API获取完整的贵金属数据（包括银行金条、回收价格和品牌价格）
+  // 从 Supabase 获取完整贵金属数据
   const fetchCompletePreciousMetalData = async () => {
     try {
       setIsLoading(true);
-      const completeData = await dataService.fetchCompletePreciousMetalDataFromAPI();
+      const completeData = await dataService.getCompletePreciousMetalData();
       setBankGoldBarPrices(completeData.bankGoldBarPrices);
       setGoldRecyclePrices(completeData.goldRecyclePrices);
       setBrandPrices(completeData.brandPrices);
     } catch (error) {
       console.error('Error fetching complete precious metal data:', error);
-      // 出错时使用默认数据
-      setBankGoldBarPrices(dataService.getBankGoldBarPrices());
-      setGoldRecyclePrices(dataService.getGoldRecyclePrices());
-      setBrandPrices(dataService.getBrandPreciousMetalPrices());
     } finally {
-      // 更新贵金属同步时间
-      const syncTime = dataService.getPreciousMetalSyncTime();
+      const syncTime = await dataService.getPreciousMetalSyncTime();
       setPreciousMetalSyncTime(syncTime);
       setIsLoading(false);
     }
   };
 
-  // 从LocalStorage加载初始数据
+  // 从 Supabase 加载初始数据
   useEffect(() => {
-    const loadInitialData = () => {
+    const loadInitialData = async () => {
       try {
-        // 初始化应用数据
-        dataService.initializeData();
-        
-        // 加载用户数据
-        const savedHoldings = dataService.getUserHoldings();
+        await dataService.initializeData();
+
+        const savedHoldings = await dataService.getUserHoldings();
         if (savedHoldings && savedHoldings.length > 0) {
           setUserHoldings(savedHoldings);
         }
-        
-        const savedWallets = dataService.getWallets();
+
+        const savedWallets = await dataService.getWallets();
         if (savedWallets && savedWallets.length > 0) {
           setWallets(savedWallets);
         }
-        
-        // 加载市场数据
-        const allFunds = dataService.getAllFunds();
+
+        const allFunds = await dataService.getAllFunds();
         setFunds(allFunds);
 
-        // 获取市场指数实时数据（从API）
         fetchMarketIndices();
-
-        // 获取贵金属数据（从API）
         fetchPreciousMetals();
-        // 获取完整的贵金属数据（包括银行金条、回收价格和品牌价格）
         fetchCompletePreciousMetalData();
-        
-        // 获取基金持仓汇总数据
-        const holdingsSummary = dataService.getFundHoldingsSummary();
+
+        const holdingsSummary = await dataService.getFundHoldingsSummary();
         setFundHoldingsSummary(holdingsSummary);
-        
-        // 获取宏观经济数据
-        const macroData = dataService.getMacroEconomicData();
+
+        const macroData = await dataService.getMacroEconomicData();
         setMacroEconomicData(macroData);
-        const cumulativeData = dataService.getMacroEconomicCumulative();
+        const cumulativeData = await dataService.getMacroEconomicCumulative();
         setMacroEconomicCumulative(cumulativeData);
-        
-        // 获取贵金属历史数据
-        const goldData = dataService.getPreciousMetalHistory('黄金', 30);
+
+        const goldData = await dataService.getPreciousMetalHistory('黄金', 30);
         setGoldHistory(goldData);
-        const silverData = dataService.getPreciousMetalHistory('白银', 30);
+        const silverData = await dataService.getPreciousMetalHistory('白银', 30);
         setSilverHistory(silverData);
 
-        // 获取贵金属同步时间
-        const initialSyncTime = dataService.getPreciousMetalSyncTime();
+        const initialSyncTime = await dataService.getPreciousMetalSyncTime();
         setPreciousMetalSyncTime(initialSyncTime);
       } catch (error) {
         console.error('Error loading initial data:', error);
-        // 即使出错也继续运行，确保页面不会崩溃
       }
     };
 
     loadInitialData();
   }, []);
 
-  // 设置定时器，每隔1分钟获取一次市场数据（市场指数和贵金属）
+  // 定时从 Supabase 刷新市场数据（轻量读取，不再调外部 API）
   useEffect(() => {
-    // 初始加载
     fetchMarketIndices();
     fetchPreciousMetals();
     fetchCompletePreciousMetalData();
 
-    // 设置定时器 - 60秒刷新一次
     const intervalId = setInterval(() => {
-      // 仅在开发环境输出调试日志
       if (process.env.NODE_ENV === 'development') {
-        console.log('🔄 定时刷新市场数据...');
+        console.log('🔄 定时刷新市场数据（从 Supabase）...');
       }
       fetchMarketIndices();
       fetchPreciousMetals();
       fetchCompletePreciousMetalData();
-    }, 60000); // 60秒 = 1分钟
+    }, 60000);
 
-    // 清理函数
-    return () => {
-      clearInterval(intervalId);
-    };
+    return () => clearInterval(intervalId);
   }, []);
 
   // 使用 useMemo 缓存过滤和排序后的基金数据
