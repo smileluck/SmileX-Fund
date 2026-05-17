@@ -268,23 +268,18 @@ export default function FundTracker({
       }
       
       // 批量获取基金数据
-      const newFunds = [];
-      for (const code of newFundCodes) {
-        try {
-          const fundData = await dataService.fetchFundRealTimeData(code);
-          newFunds.push(fundData);
-        } catch (error) {
-          console.error(`获取基金 ${code} 数据失败:`, error);
-          // 继续处理其他基金，不中断整个流程
-        }
-      }
+      const fetchedFunds = await dataService.fetchBatchFundRealTimeData(newFundCodes);
+      const newFunds = fetchedFunds.filter(fund => fund.name !== '未知基金');
       
       if (newFunds.length > 0) {
         // 添加新基金到跟踪列表
-        setTrackedFunds([...trackedFunds, ...newFunds]);
+        const updatedList = [...trackedFunds, ...newFunds];
+        setTrackedFunds(updatedList);
         setFundCodeInput('');
         setLastRefreshTime(new Date().toLocaleTimeString());
-        
+        // 立即持久化，不依赖 debounced save
+        await dataService.saveTrackedFunds(updatedList);
+
         if (newFunds.length < newFundCodes.length) {
           alert(`成功添加 ${newFunds.length} 个基金，部分基金数据获取失败`);
         } else {
@@ -303,7 +298,9 @@ export default function FundTracker({
 
   // 删除跟踪基金
   const handleRemoveTrackedFund = (code: string) => {
-    setTrackedFunds(trackedFunds.filter(fund => fund.code !== code));
+    const updatedList = trackedFunds.filter(fund => fund.code !== code);
+    setTrackedFunds(updatedList);
+    dataService.saveTrackedFunds(updatedList);
   };
 
   // 修改自动刷新间隔并持久化
@@ -412,8 +409,11 @@ export default function FundTracker({
         const newFunds = fetchedFunds.filter(fund => fund.name !== '未知基金');
 
         if (newFunds.length > 0) {
-          setTrackedFunds(prev => [...prev, ...newFunds]);
+          const updatedList = [...trackedFunds, ...newFunds];
+          setTrackedFunds(updatedList);
           setLastRefreshTime(new Date().toLocaleTimeString());
+          // 立即持久化，不依赖 debounced save
+          await dataService.saveTrackedFunds(updatedList);
           const skipped = newCodes.length - newFunds.length;
           alert(`成功导入 ${newFunds.length} 个基金${skipped > 0 ? `，${skipped} 个获取失败` : ''}`);
         } else {
