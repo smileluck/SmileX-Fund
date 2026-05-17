@@ -78,7 +78,7 @@ export default function MetalTab({
                 <div className="h-4 bg-zinc-200 dark:bg-zinc-800 rounded w-1/3 mt-1"></div>
               </div>
             ))
-          ) : (
+          ) : preciousMetals.filter(metal => metal.name === '黄金' || metal.name === '白银').length > 0 ? (
             // 显示贵金属数据
             preciousMetals
               .filter(metal => metal.name === '黄金' || metal.name === '白银')
@@ -94,6 +94,10 @@ export default function MetalTab({
                   </div>
                 </div>
               ))
+          ) : (
+            <div className="col-span-2 text-center py-8 text-zinc-400 dark:text-zinc-500">
+              暂无贵金属数据，请等待数据同步
+            </div>
           )}
         </div>
       </div>
@@ -110,20 +114,20 @@ export default function MetalTab({
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
                   <XAxis dataKey="date" stroke="rgba(0,0,0,0.6)" />
                   <YAxis stroke="rgba(0,0,0,0.6)" />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: 'white', border: '1px solid #ddd' }} 
-                    formatter={(value: number | undefined) => [`${value?.toFixed(2) || '0.00'} 元/克`, '价格']} 
+                  <Tooltip
+                    contentStyle={{ backgroundColor: 'white', border: '1px solid #ddd' }}
+                    formatter={(value: number | undefined) => [`${value?.toFixed(2) || '0.00'} 元/克`, '价格']}
                     labelFormatter={(label) => `日期: ${label}`}
                   />
                   <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey="value" 
-                    name="黄金价格" 
-                    stroke="#ffd700" 
-                    strokeWidth={2} 
-                    dot={{ r: 2 }} 
-                    activeDot={{ r: 4 }} 
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    name="黄金价格"
+                    stroke="#ffd700"
+                    strokeWidth={2}
+                    dot={{ r: 2 }}
+                    activeDot={{ r: 4 }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -139,27 +143,31 @@ export default function MetalTab({
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
                   <XAxis dataKey="date" stroke="rgba(0,0,0,0.6)" />
                   <YAxis stroke="rgba(0,0,0,0.6)" />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: 'white', border: '1px solid #ddd' }} 
-                    formatter={(value: number | undefined) => [`${value?.toFixed(2) || '0.00'} 元/克`, '价格']} 
+                  <Tooltip
+                    contentStyle={{ backgroundColor: 'white', border: '1px solid #ddd' }}
+                    formatter={(value: number | undefined) => [`${value?.toFixed(2) || '0.00'} 元/克`, '价格']}
                     labelFormatter={(label) => `日期: ${label}`}
                   />
                   <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey="value" 
-                    name="白银价格" 
-                    stroke="#c0c0c0" 
-                    strokeWidth={2} 
-                    dot={{ r: 2 }} 
-                    activeDot={{ r: 4 }} 
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    name="白银价格"
+                    stroke="#c0c0c0"
+                    strokeWidth={2}
+                    dot={{ r: 2 }}
+                    activeDot={{ r: 4 }}
                   />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           )}
         </div>
-      ) : null}
+      ) : (
+        <div className="text-center py-8 text-zinc-400 dark:text-zinc-500 mb-8">
+          暂无历史数据，数据积累后将自动显示趋势图
+        </div>
+      )}
 
       {/* 银行投资金条价格模块 */}
       <div className="mb-6">

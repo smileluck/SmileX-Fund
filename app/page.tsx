@@ -42,6 +42,7 @@ export default function HomePage() {
   const [itemsPerRow, setItemsPerRow] = useState(2); // 贵金属默认值为 2
   const [marketItemsPerRow, setMarketItemsPerRow] = useState(2); // 市场默认值为 2
   const [colorScheme, setColorScheme] = useState<'red-up' | 'red-down'>('red-up'); // 默认红色为涨
+  const [metalSyncInterval, setMetalSyncInterval] = useState(60); // 默认60秒
   // 加载状态
   const [isLoading, setIsLoading] = useState(false);
 
@@ -60,6 +61,10 @@ export default function HomePage() {
         }
         if (settings.colorScheme === 'red-up' || settings.colorScheme === 'red-down') {
           setColorScheme(settings.colorScheme);
+        }
+        if (settings.metalSyncInterval) {
+          const v = Number(settings.metalSyncInterval);
+          if (v >= 10) setMetalSyncInterval(v);
         }
       } catch (error) {
         console.error('Error reading settings:', error);
@@ -86,6 +91,10 @@ export default function HomePage() {
         }
         if (settings.colorScheme === 'red-up' || settings.colorScheme === 'red-down') {
           setColorScheme(settings.colorScheme);
+        }
+        if (settings.metalSyncInterval) {
+          const v = Number(settings.metalSyncInterval);
+          if (v >= 10) setMetalSyncInterval(v);
         }
       } catch {}
     }, 60000);
@@ -124,7 +133,31 @@ export default function HomePage() {
     }
   };
 
-  // 从 Supabase 获取贵金属数据（由后端 cron 写入）
+  // 调用 cron API 同步数据到 Supabase，然后再读取
+  const syncAndFetchPreciousMetals = async () => {
+    try {
+      setIsLoading(true);
+      // 先触发 cron 同步数据
+      await fetch('/api/cron?tasks=metals').catch(() => {});
+      // 再从 Supabase 读取
+      const metals = await dataService.getPreciousMetals();
+      setPreciousMetals(metals);
+      // 同步刷新历史数据
+      const goldData = await dataService.getPreciousMetalHistory('黄金', 30);
+      setGoldHistory(goldData);
+      const silverData = await dataService.getPreciousMetalHistory('白银', 30);
+      setSilverHistory(silverData);
+    } catch (error) {
+      console.error('Error fetching precious metals:', error);
+      setPreciousMetals([]);
+    } finally {
+      const syncTime = await dataService.getPreciousMetalSyncTime();
+      setPreciousMetalSyncTime(syncTime);
+      setIsLoading(false);
+    }
+  };
+
+  // 从 Supabase 获取贵金属数据（轻量读取，定时刷新用）
   const fetchPreciousMetals = async () => {
     try {
       setIsLoading(true);
@@ -132,10 +165,7 @@ export default function HomePage() {
       setPreciousMetals(metals);
     } catch (error) {
       console.error('Error fetching precious metals:', error);
-      setPreciousMetals([
-        { name: '黄金', value: '412.56', change: '+0.32%', isUp: true, unit: '元/克' },
-        { name: '白银', value: '5.23', change: '-0.15%', isUp: false, unit: '元/克' },
-      ]);
+      setPreciousMetals([]);
     } finally {
       const syncTime = await dataService.getPreciousMetalSyncTime();
       setPreciousMetalSyncTime(syncTime);
@@ -180,7 +210,7 @@ export default function HomePage() {
         setFunds(allFunds);
 
         fetchMarketIndices();
-        fetchPreciousMetals();
+        await syncAndFetchPreciousMetals();
         fetchCompletePreciousMetalData();
 
         const holdingsSummary = await dataService.getFundHoldingsSummary();
@@ -191,6 +221,7 @@ export default function HomePage() {
         const cumulativeData = await dataService.getMacroEconomicCumulative();
         setMacroEconomicCumulative(cumulativeData);
 
+        // 等待 cron 同步完成后再读取历史数据
         const goldData = await dataService.getPreciousMetalHistory('黄金', 30);
         setGoldHistory(goldData);
         const silverData = await dataService.getPreciousMetalHistory('白银', 30);
@@ -208,23 +239,23 @@ export default function HomePage() {
     loadInitialData();
   }, []);
 
-  // 定时从 Supabase 刷新市场数据（轻量读取，不再调外部 API）
+  // 定时从 Supabase 刷新市场数据（间隔由 metalSyncInterval 配置控制）
   useEffect(() => {
     fetchMarketIndices();
-    fetchPreciousMetals();
+    syncAndFetchPreciousMetals();
     fetchCompletePreciousMetalData();
 
     const intervalId = setInterval(() => {
       if (process.env.NODE_ENV === 'development') {
-        console.log('🔄 定时刷新市场数据（从 Supabase）...');
+        console.log(`🔄 定时刷新市场数据（间隔 ${metalSyncInterval}s）...`);
       }
       fetchMarketIndices();
-      fetchPreciousMetals();
+      syncAndFetchPreciousMetals();
       fetchCompletePreciousMetalData();
-    }, 60000);
+    }, metalSyncInterval * 1000);
 
     return () => clearInterval(intervalId);
-  }, []);
+  }, [metalSyncInterval]);
 
   // 使用 useMemo 缓存过滤和排序后的基金数据
   const filteredAndSortedFunds = useMemo(() => {

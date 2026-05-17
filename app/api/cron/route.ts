@@ -11,6 +11,12 @@ function getSupabase() {
   return createClient(supabaseUrl, supabaseAnonKey);
 }
 
+const SINA_HEADERS = {
+  Accept: '*/*',
+  Referer: 'https://finance.sina.com.cn/',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+};
+
 // ============================================
 // 市场指数抓取（新浪财经）
 // ============================================
@@ -47,11 +53,7 @@ async function refreshMarketIndices() {
       const timeoutId = setTimeout(() => controller.abort(), 8000);
       const response = await fetch(`https://hq.sinajs.cn/list=${index.code}`, {
         signal: controller.signal,
-        headers: {
-          Accept: '*/*',
-          Referer: 'https://finance.sina.com.cn/',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        },
+        headers: SINA_HEADERS,
       });
       clearTimeout(timeoutId);
       if (!response.ok) return null;
@@ -89,90 +91,135 @@ async function refreshMarketIndices() {
 
 // ============================================
 // 贵金属数据抓取
+// 黄金/白银：新浪财经期货接口（上海期货交易所）
+// 品牌/银行/回收：xxapi.cn
 // ============================================
 
+// 解析新浪期货数据：nf_AU0 / nf_AG0
+function parseSinaFuturesData(raw: string) {
+  const match = raw.match(/"([^"]+)"/);
+  if (!match) return null;
+  const f = match[1].split(',');
+  // 字段: 0=名称, 2=最新价, 10=昨收盘, 17=日期
+  const price = parseFloat(f[2]);
+  const prevClose = parseFloat(f[10]);
+  if (!price || price <= 0) return null;
+  return { price, prevClose, date: f[17] || '' };
+}
+
+// 从新浪获取沪金/沪银实时价格
+async function fetchSinaGoldSilver() {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+  const response = await fetch('https://hq.sinajs.cn/list=nf_AU0,nf_AG0', {
+    signal: controller.signal,
+    headers: SINA_HEADERS,
+  });
+  clearTimeout(timeoutId);
+  if (!response.ok) return null;
+  const text = await response.text();
+
+  const auMatch = text.match(/hq_str_nf_AU0="([^"]*)"/);
+  const agMatch = text.match(/hq_str_nf_AG0="([^"]*)"/);
+
+  const gold = auMatch?.[1] ? parseSinaFuturesData(`"${auMatch[1]}"`) : null;
+  // 白银单位是元/千克，转换为元/克
+  const silverRaw = agMatch?.[1] ? parseSinaFuturesData(`"${agMatch[1]}"`) : null;
+  const silver = silverRaw ? { ...silverRaw, price: silverRaw.price / 1000, prevClose: silverRaw.prevClose / 1000 } : null;
+
+  return { gold, silver };
+}
+
 async function refreshPreciousMetals() {
+  const supabase = getSupabase();
+  if (!supabase) return { success: false, error: 'Supabase 未配置' };
+
+  // 1. 从新浪财经获取沪金/沪银实时价格
+  const sinaData = await fetchSinaGoldSilver();
+  if (!sinaData?.gold && !sinaData?.silver) {
+    return { success: false, error: '新浪期货数据获取失败' };
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+
+  // 写入黄金
+  if (sinaData.gold) {
+    const { price, prevClose } = sinaData.gold;
+    const changePercent = prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0;
+    await supabase.from('precious_metals').upsert(
+      { name: '黄金', value: price.toFixed(2), change: `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`, is_up: changePercent >= 0, unit: '元/克' },
+      { onConflict: 'name' }
+    );
+    await supabase.from('precious_metal_history').upsert(
+      { name: '黄金', date: today, value: price },
+      { onConflict: 'name,date' }
+    );
+  }
+
+  // 写入白银
+  if (sinaData.silver) {
+    const { price, prevClose } = sinaData.silver;
+    const changePercent = prevClose > 0 ? ((price - prevClose) / prevClose) * 100 : 0;
+    await supabase.from('precious_metals').upsert(
+      { name: '白银', value: price.toFixed(2), change: `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`, is_up: changePercent >= 0, unit: '元/克' },
+      { onConflict: 'name' }
+    );
+    await supabase.from('precious_metal_history').upsert(
+      { name: '白银', date: today, value: price },
+      { onConflict: 'name,date' }
+    );
+  }
+
+  // 2. 从 xxapi.cn 获取品牌/银行/回收价格（辅助数据，失败不影响主流程）
   try {
-    const response = await fetch('https://v2.xxapi.cn/api/goldprice');
-    if (!response.ok) throw new Error(`API ${response.status}`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const response = await fetch('https://v2.xxapi.cn/api/goldprice', {
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (!response.ok) return { success: true, warning: '期货数据已写入，xxapi 品牌数据获取失败' };
     const apiResponse = await response.json();
     const data = apiResponse.data;
-    if (!data) return { success: false, error: '贵金属 API 无数据' };
 
-    const supabase = getSupabase();
-    if (!supabase) return { success: false, error: 'Supabase 未配置' };
-
-    // 银行金条价格
-    if (data.bank_gold_bar_price) {
-      for (const item of data.bank_gold_bar_price) {
-        await supabase.from('bank_gold_bar_prices').upsert(
-          { bank: item.bank, price: item.price, unit: '元/克' },
-          { onConflict: 'bank' }
-        );
-      }
+    // 批量写入：银行金条价格
+    if (data.bank_gold_bar_price?.length) {
+      const rows = data.bank_gold_bar_price.map((item: any) => ({
+        bank: item.bank, price: item.price, unit: '元/克',
+      }));
+      await supabase.from('bank_gold_bar_prices').upsert(rows, { onConflict: 'bank' });
     }
 
-    // 贵金属回收价格
-    if (data.gold_recycle_price) {
+    // 批量写入：贵金属回收价格（按 gold_type 去重，保留最新日期的记录）
+    if (data.gold_recycle_price?.length) {
+      const latestMap = new Map<string, any>();
       for (const item of data.gold_recycle_price) {
-        await supabase.from('gold_recycle_prices').upsert(
-          { gold_type: item.gold_type, recycle_price: item.recycle_price, updated_date: item.updated_date, unit: '元/克' },
-          { onConflict: 'gold_type' }
-        );
+        const existing = latestMap.get(item.gold_type);
+        if (!existing || item.updated_date >= existing.updated_date) {
+          latestMap.set(item.gold_type, item);
+        }
       }
+      const rows = Array.from(latestMap.values()).map((item: any) => ({
+        gold_type: item.gold_type, recycle_price: item.recycle_price,
+        updated_date: item.updated_date, unit: '元/克',
+      }));
+      await supabase.from('gold_recycle_prices').upsert(rows, { onConflict: 'gold_type' });
     }
 
-    // 品牌贵金属价格
-    if (data.precious_metal_price) {
-      for (const item of data.precious_metal_price) {
-        await supabase.from('brand_precious_metal_prices').upsert(
-          { brand: item.brand, bullion_price: item.bullion_price, gold_price: item.gold_price, platinum_price: item.platinum_price, updated_date: item.updated_date, unit: '元/克' },
-          { onConflict: 'brand' }
-        );
-      }
+    // 批量写入：品牌贵金属价格
+    if (data.precious_metal_price?.length) {
+      const rows = data.precious_metal_price.map((item: any) => ({
+        brand: item.brand, bullion_price: item.bullion_price,
+        gold_price: item.gold_price, platinum_price: item.platinum_price,
+        updated_date: item.updated_date, unit: '元/克',
+      }));
+      await supabase.from('brand_precious_metal_prices').upsert(rows, { onConflict: 'brand' });
     }
-
-    // 从品牌价格中提取黄金/白银简明数据写入 precious_metals
-    const previousPrices: Record<string, number> = {};
-    const { data: existing } = await supabase.from('precious_metals').select('name,value');
-    if (existing) {
-      for (const row of existing) {
-        previousPrices[row.name] = parseFloat(row.value) || 0;
-      }
-    }
-
-    // 黄金
-    if (data.precious_metal_price && data.precious_metal_price.length > 0) {
-      const firstBrand = data.precious_metal_price[0];
-      if (firstBrand?.gold_price) {
-        const currentPrice = parseFloat(firstBrand.gold_price);
-        const prev = previousPrices['黄金'] || currentPrice;
-        const changePercent = prev > 0 ? ((currentPrice - prev) / prev) * 100 : 0;
-        await supabase.from('precious_metals').upsert(
-          { name: '黄金', value: firstBrand.gold_price, change: `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`, is_up: changePercent >= 0, unit: '元/克' },
-          { onConflict: 'name' }
-        );
-      }
-    }
-
-    // 白银
-    if (data.gold_recycle_price) {
-      const silverItem = data.gold_recycle_price.find((i: { gold_type: string }) => i.gold_type.includes('银'));
-      if (silverItem?.recycle_price) {
-        const currentPrice = parseFloat(silverItem.recycle_price);
-        const prev = previousPrices['白银'] || currentPrice;
-        const changePercent = prev > 0 ? ((currentPrice - prev) / prev) * 100 : 0;
-        await supabase.from('precious_metals').upsert(
-          { name: '白银', value: silverItem.recycle_price, change: `${changePercent >= 0 ? '+' : ''}${changePercent.toFixed(2)}%`, is_up: changePercent >= 0, unit: '元/克' },
-          { onConflict: 'name' }
-        );
-      }
-    }
-
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: String(error) };
+  } catch {
+    // xxapi 品牌数据获取失败不影响期货主数据
   }
+
+  return { success: true };
 }
 
 // ============================================

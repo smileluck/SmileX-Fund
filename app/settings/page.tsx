@@ -14,6 +14,7 @@ export default function SettingsPage() {
   const [metalItemsPerRow, setMetalItemsPerRow] = useState(2); // 贵金属默认值为 2
   const [marketItemsPerRow, setMarketItemsPerRow] = useState(2); // 市场默认值为 2
   const [colorScheme, setColorScheme] = useState<'red-up' | 'red-down'>('red-up'); // 默认红色为涨
+  const [metalSyncInterval, setMetalSyncInterval] = useState(60); // 默认60秒
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -33,11 +34,16 @@ export default function SettingsPage() {
         if (settings.colorScheme === 'red-up' || settings.colorScheme === 'red-down') {
           setColorScheme(settings.colorScheme);
         }
+        if (settings.metalSyncInterval) {
+          const v = Number(settings.metalSyncInterval);
+          if ([30, 60, 120, 300, 600].includes(v)) setMetalSyncInterval(v);
+        }
       } catch (error) {
         console.error('Error reading settings:', error);
         setMetalItemsPerRow(2);
         setMarketItemsPerRow(2);
         setColorScheme('red-up');
+        setMetalSyncInterval(60);
       }
     };
     loadSettings();
@@ -56,6 +62,7 @@ export default function SettingsPage() {
         metalItemsPerRow: validMetalValue,
         marketItemsPerRow: validMarketValue,
         colorScheme,
+        metalSyncInterval,
       });
 
       // 兼容旧逻辑，同时写入独立的 localStorage 键
@@ -63,6 +70,7 @@ export default function SettingsPage() {
         localStorage.setItem('metalItemsPerRow', validMetalValue.toString());
         localStorage.setItem('marketItemsPerRow', validMarketValue.toString());
         localStorage.setItem('colorScheme', colorScheme);
+        localStorage.setItem('metalSyncInterval', metalSyncInterval.toString());
       }
 
       setSaveSuccess(true);
@@ -138,8 +146,29 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+
+            {/* 数据同步间隔设置 */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                数据同步间隔
+              </label>
+              <div className="flex items-center gap-4">
+                <select
+                  value={metalSyncInterval}
+                  onChange={(e) => setMetalSyncInterval(Number(e.target.value))}
+                  className="px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value={30}>30 秒</option>
+                  <option value={60}>1 分钟</option>
+                  <option value={120}>2 分钟</option>
+                  <option value={300}>5 分钟</option>
+                  <option value={600}>10 分钟</option>
+                </select>
+                <span className="text-sm text-zinc-400">每次同步会刷新黄金、白银价格数据</span>
+              </div>
+            </div>
           </div>
-          
+
           {/* 市场板块设置 */}
           <div className="mb-8">
             <h2 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4">市场板块</h2>

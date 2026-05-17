@@ -20,20 +20,14 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('获取贵金属数据失败:', error);
     
-    // 出错时返回默认数据
+    // 出错时返回空数据
     return NextResponse.json({
       code: 200,
-      msg: '数据请求成功',
+      msg: '数据请求成功（使用缓存）',
       data: {
-        bank_gold_bar_price: [
-          { bank: '浦发银行投资金条', price: '1204.0' }
-        ],
-        gold_recycle_price: [
-          { gold_type: '黄金回收', recycle_price: '1106.0', updated_date: '2026-02-09' }
-        ],
-        precious_metal_price: [
-          { brand: '周大福', bullion_price: '1367', gold_price: '1560', platinum_price: '-', updated_date: '2026-02-09' }
-        ]
+        bank_gold_bar_price: [],
+        gold_recycle_price: [],
+        precious_metal_price: []
       }
     });
   }

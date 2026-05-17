@@ -338,7 +338,7 @@ class DataService {
   // ===== 设置 =====
 
   async getSettings(): Promise<Record<string, any>> {
-    const defaults = { metalItemsPerRow: 2, marketItemsPerRow: 2, colorScheme: 'red-up' };
+    const defaults = { metalItemsPerRow: 2, marketItemsPerRow: 2, colorScheme: 'red-up', metalSyncInterval: 60 };
     if (isSupabaseConfigured()) {
       try {
         const supabase = getSupabase()!;
@@ -405,10 +405,7 @@ class DataService {
   // ===== 贵金属（从 Supabase 读取，由 cron 写入） =====
 
   async getPreciousMetals(): Promise<PreciousMetal[]> {
-    const defaults: PreciousMetal[] = [
-      { name: '黄金', value: '412.56', change: '+0.32%', isUp: true, unit: '元/克' },
-      { name: '白银', value: '5.23', change: '-0.15%', isUp: false, unit: '元/克' },
-    ];
+    const defaults: PreciousMetal[] = [];
     if (isSupabaseConfigured()) {
       try {
         const supabase = getSupabase()!;
@@ -769,17 +766,7 @@ class DataService {
         }
       } catch {}
     }
-    // 降级：生成默认数据
-    const history: PreciousMetalHistory[] = [];
-    const today = new Date();
-    let baseValue = 100 + Math.random() * 300;
-    for (let i = days; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      baseValue *= 1 + (Math.random() - 0.5) * 0.02;
-      history.push({ name, date: date.toISOString().split('T')[0], value: parseFloat(baseValue.toFixed(2)) });
-    }
-    return history;
+    return [];
   }
 
   // ===== 初始化 =====
