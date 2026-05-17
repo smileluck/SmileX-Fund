@@ -537,31 +537,27 @@ class DataService {
     if (isSupabaseConfigured()) {
       try {
         const supabase = getSupabase()!;
-        // 获取当前 Supabase 中的跟踪基金代码列表
         const { data: existing } = await supabase.from('tracked_funds').select('code');
         const existingCodes = new Set((existing || []).map((r: any) => r.code));
         const newCodes = new Set(funds.map((f) => f.code));
 
-        // 删除已移除的
-        for (const code of existingCodes) {
-          if (!newCodes.has(code)) {
-            await supabase.from('tracked_funds').delete().eq('code', code);
-          }
+        // 批量删除已移除的
+        const removedCodes = [...existingCodes].filter((c) => !newCodes.has(c));
+        if (removedCodes.length > 0) {
+          await supabase.from('tracked_funds').delete().in('code', removedCodes);
         }
 
-        // Upsert 当前的
-        for (const fund of funds) {
-          await supabase.from('tracked_funds').upsert(
-            {
-              code: fund.code,
-              name: fund.name,
-              net_value: fund.netValue,
-              estimated_value: fund.estimatedValue,
-              change_rate: fund.changeRate,
-              update_time: fund.updateTime,
-            },
-            { onConflict: 'code' }
-          );
+        // 批量 upsert
+        if (funds.length > 0) {
+          const rows = funds.map((f) => ({
+            code: f.code,
+            name: f.name,
+            net_value: f.netValue,
+            estimated_value: f.estimatedValue,
+            change_rate: f.changeRate,
+            update_time: f.updateTime,
+          }));
+          await supabase.from('tracked_funds').upsert(rows, { onConflict: 'code' });
         }
       } catch (error) {
         console.error('Supabase 写入 tracked_funds 失败:', error);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Trash2, RefreshCw, Download } from 'lucide-react';
+import { Trash2, RefreshCw, Download, Upload, ChevronDown } from 'lucide-react';
 import dataService from '@/lib/dataService';
 import { FundRealTimeData } from '@/lib/dataService';
 
@@ -23,11 +23,25 @@ export default function FundTracker({
   const [isLoading, setIsLoading] = useState(false);
   const [lastRefreshTime, setLastRefreshTime] = useState<string>('');
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
+  const [refreshInterval, setRefreshInterval] = useState(5);
+  const [showRefreshMenu, setShowRefreshMenu] = useState(false);
   // 排序相关状态
   const [sortField, setSortField] = useState<string | null>('changeRate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   // 跳过首次挂载，避免用初始空值覆盖 Supabase 数据
   const hasLoadedRef = useRef(false);
+  const refreshMenuRef = useRef<HTMLDivElement>(null);
+
+  // 点击菜单外部关闭
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (refreshMenuRef.current && !refreshMenuRef.current.contains(e.target as Node)) {
+        setShowRefreshMenu(false);
+      }
+    };
+    if (showRefreshMenu) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showRefreshMenu]);
 
   // 用于跟踪最新的 trackedFunds 状态，避免 useEffect 频繁执行
   const trackedFundsRef = React.useRef<FundRealTimeData[]>(trackedFunds);
@@ -37,14 +51,20 @@ export default function FundTracker({
     trackedFundsRef.current = trackedFunds;
   }, [trackedFunds]);
 
-  // 从 dataService 加载跟踪基金数据
+  // 从 dataService 加载跟踪基金数据和刷新间隔设置
   useEffect(() => {
     const loadTrackedFunds = async () => {
       try {
-        const trackedFundsList = await dataService.getTrackedFunds();
+        const [trackedFundsList, settings] = await Promise.all([
+          dataService.getTrackedFunds(),
+          dataService.getSettings(),
+        ]);
         if (trackedFundsList.length > 0) {
           setTrackedFunds(trackedFundsList);
           setLastRefreshTime(new Date().toLocaleTimeString());
+        }
+        if (settings.refreshInterval) {
+          setRefreshInterval(Number(settings.refreshInterval));
         }
       } catch (error) {
         console.error('加载跟踪基金数据失败:', error);
@@ -128,8 +148,8 @@ export default function FundTracker({
       setAutoRefreshEnabled(enabled);
 
       if (enabled && !refreshIntervalId) {
-        // 设置定时器，每5分钟刷新一次
-        refreshIntervalId = setInterval(autoRefresh, 5 * 60 * 1000);
+        // 设置定时器，按用户配置的间隔刷新
+        refreshIntervalId = setInterval(autoRefresh, refreshInterval * 60 * 1000);
       } else if (!enabled && refreshIntervalId) {
         // 清除定时器
         clearInterval(refreshIntervalId);
@@ -154,9 +174,7 @@ export default function FundTracker({
         checkIntervalId = null;
       }
     };
-  }, []);
-
-  // 手动刷新基金数据
+  }, [refreshInterval]);
   const handleManualRefresh = async () => {
     if (trackedFunds.length === 0) {
       alert('暂无跟踪基金');
@@ -288,6 +306,17 @@ export default function FundTracker({
     setTrackedFunds(trackedFunds.filter(fund => fund.code !== code));
   };
 
+  // 修改自动刷新间隔并持久化
+  const handleChangeRefreshInterval = async (minutes: number) => {
+    setRefreshInterval(minutes);
+    try {
+      const settings = await dataService.getSettings();
+      await dataService.saveSettings({ ...settings, refreshInterval: minutes });
+    } catch (error) {
+      console.error('保存刷新间隔设置失败:', error);
+    }
+  };
+
   // 导出基金列表为CSV格式
   const handleExportCSV = () => {
     if (trackedFunds.length === 0) {
@@ -340,6 +369,66 @@ export default function FundTracker({
     alert('基金列表已成功导出为TXT文件');
   };
 
+  // 导入TXT文件（支持导出的TXT格式：每行 "代码 名称" 或纯代码，也支持CSV格式）
+  const handleImportTXT = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.txt,.csv';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        // 从每行中提取6位数字基金代码（兼容TXT "代码 名称" 和 CSV "代码,名称" 格式）
+        const codes = text
+          .split(/[\r\n]+/)
+          .map(line => {
+            const match = line.trim().match(/^(\d{6})[\s,]/) || line.trim().match(/^(\d{6})$/);
+            return match ? match[1] : '';
+          })
+          .filter(code => code);
+
+        if (codes.length === 0) {
+          alert('未在文件中找到有效的6位基金代码');
+          return;
+        }
+
+        // 去重
+        const uniqueCodes = [...new Set(codes)];
+
+        const newCodes = uniqueCodes.filter(code =>
+          !trackedFunds.some(fund => fund.code === code)
+        );
+
+        if (newCodes.length === 0) {
+          alert('文件中的基金均已在跟踪列表中');
+          return;
+        }
+
+        setIsLoading(true);
+        // 批量获取基金数据
+        const fetchedFunds = await dataService.fetchBatchFundRealTimeData(newCodes);
+        const newFunds = fetchedFunds.filter(fund => fund.name !== '未知基金');
+
+        if (newFunds.length > 0) {
+          setTrackedFunds(prev => [...prev, ...newFunds]);
+          setLastRefreshTime(new Date().toLocaleTimeString());
+          const skipped = newCodes.length - newFunds.length;
+          alert(`成功导入 ${newFunds.length} 个基金${skipped > 0 ? `，${skipped} 个获取失败` : ''}`);
+        } else {
+          alert('无法获取任何基金数据，请检查文件内容');
+        }
+      } catch (error) {
+        console.error('导入文件失败:', error);
+        alert('导入文件失败，请确保文件格式正确');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    input.click();
+  };
+
   // 处理排序
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -376,15 +465,41 @@ export default function FundTracker({
     <div className="mb-6">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold text-zinc-900 dark:text-white">基金跟踪</h3>
-        <div className="flex gap-2">
+        <div className="flex gap-2 relative" ref={refreshMenuRef}>
           <button
-            onClick={handleManualRefresh}
+            onClick={() => setShowRefreshMenu(!showRefreshMenu)}
             className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-md flex items-center gap-1"
-            disabled={isLoading}
           >
-            <RefreshCw className="h-4 w-4" />
-            {isLoading ? '刷新中...' : '手动刷新'}
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            刷新
+            <ChevronDown className="h-3 w-3" />
           </button>
+          {showRefreshMenu && (
+            <div className="absolute right-0 top-full mt-1 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg shadow-lg z-10 min-w-[180px] py-1">
+              <button
+                onClick={() => { setShowRefreshMenu(false); handleManualRefresh(); }}
+                className="w-full px-4 py-2 text-sm text-left hover:bg-zinc-100 dark:hover:bg-zinc-700 text-zinc-900 dark:text-white flex items-center gap-2"
+                disabled={isLoading}
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                {isLoading ? '刷新中...' : '手动刷新'}
+              </button>
+              <div className="border-t border-zinc-200 dark:border-zinc-700 my-1" />
+              <div className="px-4 py-1.5 text-xs text-zinc-500 dark:text-zinc-400">自动刷新间隔</div>
+              {[1, 3, 5, 10].map((min) => (
+                <button
+                  key={min}
+                  onClick={() => { setShowRefreshMenu(false); handleChangeRefreshInterval(min); }}
+                  className={`w-full px-4 py-2 text-sm text-left hover:bg-zinc-100 dark:hover:bg-zinc-700 flex items-center justify-between ${
+                    refreshInterval === min ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-zinc-900 dark:text-white'
+                  }`}
+                >
+                  <span>每 {min} 分钟</span>
+                  {refreshInterval === min && <span className="text-blue-600 dark:text-blue-400">✓</span>}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
       
@@ -416,7 +531,7 @@ export default function FundTracker({
             最后刷新时间: {lastRefreshTime}
             {autoRefreshEnabled && (
               <span className="ml-2 text-green-500 dark:text-green-400">
-                (自动刷新中)
+                (自动刷新中 / 每{refreshInterval}分钟)
               </span>
             )}
           </p>
@@ -442,6 +557,14 @@ export default function FundTracker({
           >
             <Download className="h-4 w-4" />
             导出TXT
+          </button>
+          <button
+            onClick={handleImportTXT}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-md flex items-center gap-2"
+            disabled={isLoading}
+          >
+            <Upload className="h-4 w-4" />
+            导入文件
           </button>
         </div>
       </div>
