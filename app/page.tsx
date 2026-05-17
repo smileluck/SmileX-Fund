@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import Link from 'next/link';
 import { Search, Bell, Settings, ChevronDown, TrendingUp, BarChart2, Bookmark, Home, DollarSign, LineChart as LineChartIcon } from 'lucide-react';
 import { FundInfo, MarketIndex, MacroEconomicData, MacroEconomicCumulative, UserHolding, Wallet, PreciousMetal, PreciousMetalHistory, BankGoldBarPrice, GoldRecyclePrice, BrandPreciousMetalPrice, formatCurrency, formatPercentage } from '@/lib/dataService';
@@ -92,13 +92,18 @@ export default function HomePage() {
     return () => clearInterval(intervalId);
   }, []);
 
+  // 跳过首次挂载，避免用初始空值覆盖 Supabase 数据
+  const hasLoadedRef = useRef(false);
+
   // 监听用户持仓变化并自动保存
   useEffect(() => {
+    if (!hasLoadedRef.current) return;
     dataService.debouncedSaveUserHoldings(userHoldings);
   }, [userHoldings]);
 
   // 监听钱包变化并自动保存
   useEffect(() => {
+    if (!hasLoadedRef.current) return;
     dataService.debouncedSaveWallets(wallets);
   }, [wallets]);
 
@@ -195,6 +200,8 @@ export default function HomePage() {
         setPreciousMetalSyncTime(initialSyncTime);
       } catch (error) {
         console.error('Error loading initial data:', error);
+      } finally {
+        hasLoadedRef.current = true;
       }
     };
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Trash2, RefreshCw, Download } from 'lucide-react';
 import dataService from '@/lib/dataService';
 import { FundRealTimeData } from '@/lib/dataService';
@@ -26,6 +26,9 @@ export default function FundTracker({
   // 排序相关状态
   const [sortField, setSortField] = useState<string | null>('changeRate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  // 跳过首次挂载，避免用初始空值覆盖 Supabase 数据
+  const hasLoadedRef = useRef(false);
+
   // 用于跟踪最新的 trackedFunds 状态，避免 useEffect 频繁执行
   const trackedFundsRef = React.useRef<FundRealTimeData[]>(trackedFunds);
   
@@ -45,6 +48,8 @@ export default function FundTracker({
         }
       } catch (error) {
         console.error('加载跟踪基金数据失败:', error);
+      } finally {
+        hasLoadedRef.current = true;
       }
     };
 
@@ -53,6 +58,7 @@ export default function FundTracker({
 
   // 当跟踪基金列表变化时，保存到 dataService
   useEffect(() => {
+    if (!hasLoadedRef.current) return;
     try {
       dataService.debouncedSaveTrackedFunds(trackedFunds);
     } catch (error) {
