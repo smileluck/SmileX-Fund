@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -8,25 +8,55 @@ import { ArrowLeft, TrendingUp, BarChart2, User, Calendar, Shield, PieChart, Max
 import { FundInfo, FundHistory, formatCurrency, formatPercentage } from '@/lib/dataService';
 import dataService from '@/lib/dataService';
 
-/**
- * 基金详情页面
- * 展示单个基金的详细信息和历史走势图
- */
+const TIME_RANGE_LABELS: Record<string, string> = {
+  '1d': '近1日',
+  '1w': '近7天',
+  '1m': '近1月',
+  '3m': '近3月',
+  '1y': '近1年',
+};
+
+type TimeRange = '1d' | '1w' | '1m' | '3m' | '1y';
+
 export default function FundDetailPage() {
   const params = useParams<{ code: string }>();
   const router = useRouter();
   const fundCode = params.code;
-  
+
   const [fund, setFund] = useState<FundInfo | null>(null);
   const [historyData, setHistoryData] = useState<FundHistory[]>([]);
-  const [timeRange, setTimeRange] = useState<'1d' | '1w' | '1m' | '3m' | '1y'>('1m');
+  const [timeRange, setTimeRange] = useState<TimeRange>('1m');
   const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
 
-  // 获取基金数据和历史走势
+  const getDaysForRange = useCallback((range: string): number => {
+    switch (range) {
+      case '1d': return 1;
+      case '1w': return 7;
+      case '1m': return 30;
+      case '3m': return 90;
+      case '1y': return 365;
+      default: return 30;
+    }
+  }, []);
+
+  const fetchHistoryData = useCallback(async (code: string, days: number, signal?: AbortSignal): Promise<FundHistory[]> => {
+    const response = await fetch(`/api/fund/history?code=${code}&days=${days}`, { signal });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    return (data.items || []).map((item: any) => ({
+      code,
+      date: item.date,
+      value: item.value,
+    }));
+  }, []);
+
+  // 获取基金基本信息
   useEffect(() => {
-    const fetchFundData = async () => {
+    const fetchFundInfo = async () => {
       if (!fundCode) {
         setError('基金代码不能为空');
         setLoading(false);
@@ -34,71 +64,13 @@ export default function FundDetailPage() {
       }
 
       try {
-        // 获取基金详情
-        const fundData = dataService.getFundByCode(fundCode);
+        const fundData = await dataService.getFundByCode(fundCode);
         if (!fundData) {
           setError('未找到该基金信息');
           setLoading(false);
           return;
         }
         setFund(fundData);
-
-        // 根据时间范围获取历史数据
-        let days = 30; // 默认 1 个月
-        switch (timeRange) {
-          case '1d':
-            days = 1;
-            break;
-          case '1w':
-            days = 7;
-            break;
-          case '1m':
-            days = 30;
-            break;
-          case '3m':
-            days = 90;
-            break;
-          case '1y':
-            days = 365;
-            break;
-          default:
-            days = 30;
-        }
-        
-        // 获取历史数据
-        try {
-          // 生成模拟历史数据
-          const generateFundHistory = (code: string, days: number = 30): FundHistory[] => {
-            const history: FundHistory[] = [];
-            const today = new Date();
-            let baseValue = 1 + Math.random() * 2; // 初始值 1-3 之间
-            
-            for (let i = days; i >= 0; i--) {
-              const date = new Date(today);
-              date.setDate(date.getDate() - i);
-              const dateStr = date.toISOString().split('T')[0];
-              
-              // 生成带有随机波动的历史数据
-              baseValue = baseValue * (1 + (Math.random() - 0.5) * 0.02);
-              
-              history.push({
-                code,
-                date: dateStr,
-                value: parseFloat(baseValue.toFixed(4))
-              });
-            }
-            
-            return history;
-          };
-          
-          const history = generateFundHistory(fundCode, days);
-          setHistoryData(history);
-        } catch (historyError) {
-          console.error('Error fetching fund history:', historyError);
-          // 历史数据获取失败不影响页面其他部分的显示
-          setHistoryData([]);
-        }
-
         setLoading(false);
       } catch (err) {
         setError('获取基金数据失败');
@@ -107,12 +79,68 @@ export default function FundDetailPage() {
       }
     };
 
-    fetchFundData();
-  }, [fundCode, timeRange]);
+    fetchFundInfo();
+  }, [fundCode]);
 
-  // 处理返回按钮点击
+  // 获取历史数据（根据 timeRange 变化）
+  useEffect(() => {
+    if (!fundCode || loading) return;
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const fetchHistory = async () => {
+      const days = getDaysForRange(timeRange);
+      try {
+        setHistoryLoading(true);
+        const history = await fetchHistoryData(fundCode, days, controller.signal);
+        setHistoryData(history);
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+        console.error('Error fetching fund history:', err);
+        setHistoryData([]);
+      } finally {
+        if (!controller.signal.aborted) {
+          setHistoryLoading(false);
+        }
+      }
+    };
+
+    fetchHistory();
+
+    return () => {
+      controller.abort();
+    };
+  }, [fundCode, timeRange, loading, getDaysForRange, fetchHistoryData]);
+
+  const handleTimeRangeChange = useCallback((range: TimeRange) => {
+    if (abortRef.current) {
+      abortRef.current.abort();
+    }
+    setTimeRange(range);
+  }, []);
+
   const handleBackClick = () => {
     router.back();
+  };
+
+  // 计算涨跌幅
+  const calculateChangeRate = (data: FundHistory[]): number => {
+    if (data.length < 2) return 0;
+    const firstValue = data[0].value;
+    const lastValue = data[data.length - 1].value;
+    return ((lastValue - firstValue) / firstValue) * 100;
+  };
+
+  const changeRate = calculateChangeRate(historyData);
+  const isUp = changeRate > 0;
+
+  const formatDateTick = (dateStr: string) => {
+    if (historyData.length > 31) {
+      const parts = dateStr.split('-');
+      return `${parseInt(parts[1])}/${parseInt(parts[2])}`;
+    }
+    return dateStr;
   };
 
   // 加载中状态
@@ -121,7 +149,7 @@ export default function FundDetailPage() {
       <div className="flex flex-col min-h-screen bg-zinc-50 dark:bg-black">
         <header className="sticky top-0 z-50 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 shadow-sm">
           <div className="container mx-auto px-4 py-3 flex items-center">
-            <button 
+            <button
               onClick={handleBackClick}
               className="mr-4 p-1 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800"
             >
@@ -145,12 +173,11 @@ export default function FundDetailPage() {
       <div className="flex flex-col min-h-screen bg-zinc-50 dark:bg-black">
         <header className="sticky top-0 z-50 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 shadow-sm">
           <div className="container mx-auto px-4 py-3 flex items-center">
-            <button 
+            <button
               onClick={handleBackClick}
               className="mr-4 p-1 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800"
             >
               <ArrowLeft className="h-5 w-5 text-zinc-600 dark:text-zinc-400" />
-
             </button>
             <h1 className="text-xl font-bold text-zinc-900 dark:text-white">基金详情</h1>
           </div>
@@ -158,7 +185,7 @@ export default function FundDetailPage() {
         <main className="flex-1 container mx-auto px-4 py-6 flex items-center justify-center">
           <div className="text-center">
             <p className="text-red-600 dark:text-red-400">{error || '未找到基金信息'}</p>
-            <button 
+            <button
               onClick={handleBackClick}
               className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
             >
@@ -170,73 +197,12 @@ export default function FundDetailPage() {
     );
   }
 
-  // 计算时间范围对应的天数
-  const getDaysForRange = (range: string): number => {
-    switch (range) {
-      case '1d': return 1;
-      case '1w': return 7;
-      case '1m': return 30;
-      case '3m': return 90;
-      case '1y': return 365;
-      default: return 30;
-    }
-  };
-
-  // 处理时间范围变更
-  const handleTimeRangeChange = (range: '1d' | '1w' | '1m' | '3m' | '1y') => {
-    setTimeRange(range);
-    try {
-      const days = getDaysForRange(range);
-      // 生成模拟历史数据
-      const generateFundHistory = (code: string, days: number = 30): FundHistory[] => {
-        const history: FundHistory[] = [];
-        const today = new Date();
-        let baseValue = 1 + Math.random() * 2; // 初始值 1-3 之间
-        
-        for (let i = days; i >= 0; i--) {
-          const date = new Date(today);
-          date.setDate(date.getDate() - i);
-          const dateStr = date.toISOString().split('T')[0];
-          
-          // 生成带有随机波动的历史数据
-          baseValue = baseValue * (1 + (Math.random() - 0.5) * 0.02);
-          
-          history.push({
-            code,
-            date: dateStr,
-            value: parseFloat(baseValue.toFixed(4))
-          });
-        }
-        
-        return history;
-      };
-      
-      const history = generateFundHistory(fundCode, days);
-      setHistoryData(history);
-    } catch (error) {
-      console.error('Error fetching fund history for time range:', error);
-      // 历史数据获取失败不影响页面其他部分的显示
-      setHistoryData([]);
-    }
-  };
-
-  // 计算涨跌幅
-  const calculateChangeRate = (data: FundHistory[]): number => {
-    if (data.length < 2) return 0;
-    const firstValue = data[0].value;
-    const lastValue = data[data.length - 1].value;
-    return ((lastValue - firstValue) / firstValue) * 100;
-  };
-
-  const changeRate = calculateChangeRate(historyData);
-  const isUp = changeRate > 0;
-
   return (
     <div className="flex flex-col min-h-screen bg-zinc-50 dark:bg-black">
       {/* 顶部导航栏 */}
       <header className="sticky top-0 z-50 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 shadow-sm">
         <div className="container mx-auto px-4 py-3 flex items-center">
-          <button 
+          <button
             onClick={handleBackClick}
             className="mr-4 p-1 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800"
           >
@@ -304,13 +270,13 @@ export default function FundDetailPage() {
                     key={range}
                     onTouchEnd={() => handleTimeRangeChange(range)}
                     onClick={() => handleTimeRangeChange(range)}
-                    className={`px-3 py-1 text-xs rounded-full cursor-pointer ${timeRange === range 
+                    className={`px-3 py-1 text-xs rounded-full cursor-pointer ${timeRange === range
                       ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
                       : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
                     }`}
                     style={{ touchAction: 'manipulation' }}
                   >
-                    {range}
+                    {TIME_RANGE_LABELS[range]}
                   </div>
                 ))}
               </div>
@@ -326,42 +292,53 @@ export default function FundDetailPage() {
             </div>
           </div>
           <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={historyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis 
-                  dataKey="date" 
-                  stroke="#6b7280"
-                  tick={{ fontSize: 12 }}
-                  interval={Math.ceil(historyData.length / 10)}
-                />
-                <YAxis 
-                  stroke="#6b7280"
-                  tick={{ fontSize: 12 }}
-                  domain={['dataMin - 0.05', 'dataMax + 0.05']}
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '0.375rem',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                  }}
-                  formatter={(value: number | undefined) => [formatCurrency(value ?? 0), '估值']}
-                  labelFormatter={(label) => `日期: ${label}`}
-                />
-                <Legend />
-                <Line 
-                  type="monotone" 
-                  dataKey="value" 
-                  name="估值走势" 
-                  stroke={isUp ? '#10b981' : '#ef4444'} 
-                  strokeWidth={2} 
-                  dot={false} 
-                  activeDot={{ r: 6 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            {historyLoading ? (
+              <div className="h-full flex items-center justify-center">
+                <p className="text-zinc-500 dark:text-zinc-400">加载历史数据...</p>
+              </div>
+            ) : historyData.length === 0 ? (
+              <div className="h-full flex items-center justify-center">
+                <p className="text-zinc-500 dark:text-zinc-400">暂无历史数据</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={historyData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis
+                    dataKey="date"
+                    stroke="#6b7280"
+                    tick={{ fontSize: 12 }}
+                    tickFormatter={formatDateTick}
+                    interval={Math.ceil(historyData.length / 10)}
+                  />
+                  <YAxis
+                    stroke="#6b7280"
+                    tick={{ fontSize: 12 }}
+                    domain={['dataMin - 0.05', 'dataMax + 0.05']}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.375rem',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}
+                    formatter={(value: number | undefined) => [formatCurrency(value ?? 0), '单位净值']}
+                    labelFormatter={(label) => `日期: ${label}`}
+                  />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    name="单位净值"
+                    stroke={isUp ? '#10b981' : '#ef4444'}
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -447,16 +424,15 @@ export default function FundDetailPage() {
 
       {/* 全屏图表模态框 */}
       {isFullscreen && (
-        <div className="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6">
+        <div className="fixed inset-0 z-50 bg-white dark:bg-black flex flex-col items-center justify-center p-6">
           <div className="relative w-full max-w-7xl max-h-[95vh] flex flex-col">
             {/* 顶部控制栏 */}
             <div className="flex items-center justify-between mb-4">
-              {/* 全屏图表标题 */}
-              <div className="flex items-center gap-2 text-zinc-900">
+              <div className="flex items-center gap-2 text-zinc-900 dark:text-white">
                 <TrendingUp className="h-5 w-5 text-blue-600" />
                 <h2 className="text-lg font-semibold">{fund?.name} - 历史走势 (全屏)</h2>
               </div>
-              
+
               {/* 时间范围选择器 */}
               <div className="flex gap-1">
                 {(['1d', '1w', '1m', '3m', '1y'] as const).map((range) => (
@@ -464,17 +440,17 @@ export default function FundDetailPage() {
                     key={range}
                     onTouchEnd={() => handleTimeRangeChange(range)}
                     onClick={() => handleTimeRangeChange(range)}
-                    className={`px-3 py-1 text-xs rounded-full cursor-pointer ${timeRange === range 
+                    className={`px-3 py-1 text-xs rounded-full cursor-pointer ${timeRange === range
                       ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
                       : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700'
                     }`}
                     style={{ touchAction: 'manipulation' }}
                   >
-                    {range}
+                    {TIME_RANGE_LABELS[range]}
                   </div>
                 ))}
               </div>
-              
+
               {/* 关闭按钮 */}
               <div
                 onTouchEnd={() => setIsFullscreen(false)}
@@ -486,46 +462,57 @@ export default function FundDetailPage() {
                 <Minimize2 className="h-5 w-5 text-zinc-600 dark:text-zinc-400" />
               </div>
             </div>
-            
+
             {/* 全屏图表 */}
             <div className="flex-1 min-h-[60vh]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={historyData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis 
-                    dataKey="date" 
-                    stroke="#6b7280"
-                    tick={{ fontSize: 12, fill: '#6b7280' }}
-                    interval={Math.ceil(historyData.length / 10)}
-                  />
-                  <YAxis 
-                    stroke="#6b7280"
-                    tick={{ fontSize: 12, fill: '#6b7280' }}
-                    domain={['dataMin - 0.05', 'dataMax + 0.05']}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '0.375rem',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                      color: '#1f2937'
-                    }}
-                    formatter={(value: number | undefined) => [formatCurrency(value ?? 0), '估值']}
-                    labelFormatter={(label) => `日期: ${label}`}
-                  />
-                  <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey="value" 
-                    name="估值走势" 
-                    stroke={isUp ? '#10b981' : '#ef4444'} 
-                    strokeWidth={3} 
-                    dot={false} 
-                    activeDot={{ r: 8, fill: isUp ? '#10b981' : '#ef4444' }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              {historyLoading ? (
+                <div className="h-full flex items-center justify-center">
+                  <p className="text-zinc-500 dark:text-zinc-400">加载历史数据...</p>
+                </div>
+              ) : historyData.length === 0 ? (
+                <div className="h-full flex items-center justify-center">
+                  <p className="text-zinc-500 dark:text-zinc-400">暂无历史数据</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={historyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis
+                      dataKey="date"
+                      stroke="#6b7280"
+                      tick={{ fontSize: 12, fill: '#6b7280' }}
+                      tickFormatter={formatDateTick}
+                      interval={Math.ceil(historyData.length / 10)}
+                    />
+                    <YAxis
+                      stroke="#6b7280"
+                      tick={{ fontSize: 12, fill: '#6b7280' }}
+                      domain={['dataMin - 0.05', 'dataMax + 0.05']}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '0.375rem',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                        color: '#1f2937'
+                      }}
+                      formatter={(value: number | undefined) => [formatCurrency(value ?? 0), '单位净值']}
+                      labelFormatter={(label) => `日期: ${label}`}
+                    />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="value"
+                      name="单位净值"
+                      stroke={isUp ? '#10b981' : '#ef4444'}
+                      strokeWidth={3}
+                      dot={false}
+                      activeDot={{ r: 8, fill: isUp ? '#10b981' : '#ef4444' }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
         </div>
