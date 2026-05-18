@@ -1,6 +1,10 @@
 // 市场指数实时数据 API 路由
 // 用于获取中国主要股票指数的实时行情数据，解决 CORS 问题
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 /**
  * 市场指数配置接口
@@ -146,12 +150,31 @@ export async function GET(request: NextRequest) {
     // 如果所有请求都失败，返回错误
     if (results.length === 0) {
       return NextResponse.json(
-        { 
+        {
           error: '无法获取市场指数数据',
-          message: '所有数据源请求失败' 
+          message: '所有数据源请求失败'
         },
         { status: 503 }
       );
+    }
+
+    // 保存到 Supabase（后台写入，失败不影响返回）
+    if (supabaseUrl && supabaseAnonKey) {
+      try {
+        const supabase = createClient(supabaseUrl, supabaseAnonKey);
+        for (const item of results) {
+          await supabase
+            .from('market_indices')
+            .upsert({
+              name: item.name,
+              value: item.value,
+              change: item.change,
+              is_up: item.isUp,
+            }, { onConflict: 'name' });
+        }
+      } catch (error) {
+        console.error('保存市场指数到 Supabase 失败:', error);
+      }
     }
 
     // 返回成功响应
