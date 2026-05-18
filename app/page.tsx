@@ -123,8 +123,18 @@ export default function HomePage() {
 
   // 如需在同一页面内同步设置变化，请在修改localStorage后直接更新对应的状态
 
-  // 从 Supabase 获取市场指数数据（由后端 cron 写入）
+  // 从实时 API 获取市场指数数据，失败时回退到 Supabase/localStorage
   const fetchMarketIndices = async () => {
+    try {
+      const response = await fetch('/api/market/indices');
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data?.length > 0) {
+          setMarketIndices(result.data);
+          return;
+        }
+      }
+    } catch {}
     try {
       const indices = await dataService.getMarketIndices();
       setMarketIndices(indices);

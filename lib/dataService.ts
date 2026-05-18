@@ -58,6 +58,7 @@ export interface MarketIndex {
   value: string;
   change: string;
   isUp: boolean;
+  updateTime?: string;
 }
 
 export interface MacroEconomicData {
@@ -393,6 +394,7 @@ class DataService {
             value: row.value,
             change: row.change,
             isUp: row.is_up,
+            updateTime: row.updated_at || undefined,
           }));
         }
       } catch (error) {
